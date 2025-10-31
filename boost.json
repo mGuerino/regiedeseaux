@@ -1,0 +1,13 @@
+{
+    "agents": [
+        "copilot"
+    ],
+    "editors": [
+        "claude_code",
+        "cursor",
+        "phpstorm",
+        "vscode"
+    ],
+    "guidelines": [],
+    "herd_mcp": true
+}

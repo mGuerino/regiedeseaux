@@ -1,0 +1,20 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/Users/michaelguerino/Library/Application Support/Herd/bin/php83",
+            "args": [
+                "/Users/michaelguerino/code/regiedeseaux/artisan",
+                "boost:mcp"
+            ]
+        },
+        "herd": {
+            "command": "/Users/michaelguerino/Library/Application Support/Herd/bin/php83",
+            "args": [
+                "/Applications/Herd.app/Contents/Resources/herd-mcp.phar"
+            ],
+            "env": {
+                "SITE_PATH": "/Users/michaelguerino/code/regiedeseaux"
+            }
+        }
+    }
+}
