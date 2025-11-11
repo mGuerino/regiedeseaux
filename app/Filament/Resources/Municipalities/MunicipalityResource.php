@@ -20,7 +20,15 @@ class MunicipalityResource extends Resource
 {
     protected static ?string $model = Municipality::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
+
+    protected static ?string $navigationLabel = 'Communes';
+
+    protected static ?string $modelLabel = 'commune';
+
+    protected static ?string $pluralModelLabel = 'communes';
+
+    protected static ?int $navigationSort = 3;
 
     public static function form(Schema $schema): Schema
     {

@@ -20,13 +20,15 @@ class RequestResource extends Resource
 {
     protected static ?string $model = Request::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
     protected static ?string $navigationLabel = 'Demandes';
 
     protected static ?string $modelLabel = 'demande';
 
     protected static ?string $pluralModelLabel = 'demandes';
+
+    protected static ?int $navigationSort = 1;
 
     public static function form(Schema $schema): Schema
     {
