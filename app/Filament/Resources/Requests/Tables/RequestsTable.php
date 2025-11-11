@@ -43,12 +43,17 @@ class RequestsTable
                     ->searchable()
                     ->sortable(),
 
-                TextColumn::make('parcels.ident')
+                TextColumn::make('parcels_list')
                     ->label('Parcelles')
-                    ->formatStateUsing(fn ($record) => $record->parcels->pluck('pivot.parcel_name')->filter()->implode(', ') ?: $record->parcels->pluck('ident')->implode(', '))
-                    ->searchable()
-                    ->toggleable()
-                    ->wrap(),
+                    ->badge()
+                    ->getStateUsing(fn ($record) => $record->parcels->map(fn ($parcel) => $parcel->pivot->parcel_name ?: $parcel->ident))
+                    ->searchable(query: function ($query, $search) {
+                        return $query->whereHas('parcels', function ($query) use ($search) {
+                            $query->where('ident', 'like', "%{$search}%")
+                                ->orWhere('parcel_request.parcel_name', 'like', "%{$search}%");
+                        });
+                    })
+                    ->toggleable(),
 
                 TextColumn::make('contact')
                     ->label('Contact')

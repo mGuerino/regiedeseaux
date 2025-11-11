@@ -39,4 +39,22 @@ class Municipality extends Model
     {
         return $this->hasMany(Road::class, 'municipality_code', 'code');
     }
+
+    public function parcels(): HasMany
+    {
+        return $this->hasMany(Parcel::class, 'codcomm', 'code_with_division');
+    }
+
+    /**
+     * Get all distinct cadastral sections for this municipality.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function sections()
+    {
+        return $this->parcels()
+            ->distinct()
+            ->orderBy('ccosec')
+            ->pluck('ccosec');
+    }
 }

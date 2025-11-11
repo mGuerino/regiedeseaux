@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Parcel extends Model
@@ -36,5 +37,10 @@ class Parcel extends Model
             ->using(ParcelRequest::class)
             ->withPivot(['label_x', 'label_y', 'section_number', 'parcel_name'])
             ->withTimestamps();
+    }
+
+    public function municipality(): BelongsTo
+    {
+        return $this->belongsTo(Municipality::class, 'codcomm', 'code_with_division');
     }
 }
