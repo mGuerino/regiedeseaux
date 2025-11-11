@@ -8,7 +8,6 @@ use App\Models\Parcel;
 use App\Models\Road;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -144,33 +143,27 @@ class RequestForm
                 Section::make('Rues')
                     ->description('Sélectionnez une ou plusieurs rues')
                     ->schema([
-                        Repeater::make('roads')
+                        Select::make('roads')
                             ->label('Rues')
-                            ->relationship()
-                            ->schema([
-                                Select::make('CDRURU')
-                                    ->label('Rue')
-                                    ->options(function (callable $get) {
-                                        $municipalityCode = $get('../../municipality_code');
+                            ->multiple()
+                            ->relationship('roads', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->options(function (callable $get) {
+                                $municipalityCode = $get('municipality_code');
 
-                                        if (! $municipalityCode) {
-                                            return [];
-                                        }
+                                if (!$municipalityCode) {
+                                    return [];
+                                }
 
-                                        return Road::where('municipality_code', $municipalityCode)
-                                            ->orderBy('name')
-                                            ->pluck('name', 'CDRURU');
-                                    })
-                                    ->searchable()
-                                    ->native(false)
-                                    ->required()
-                                    ->disabled(fn (callable $get) => ! $get('../../municipality_code'))
-                                    ->helperText('Veuillez d\'abord sélectionner une commune'),
-
-                            ])
-                            ->defaultItems(0)
-                            ->addActionLabel('Ajouter une rue')
-                            ->required(),
+                                return Road::where('municipality_code', $municipalityCode)
+                                    ->orderBy('name')
+                                    ->pluck('name', 'CDRURU');
+                            })
+                            ->native(false)
+                            ->required()
+                            ->disabled(fn (callable $get) => !$get('municipality_code'))
+                            ->helperText('Veuillez d\'abord sélectionner une commune'),
                     ]),
 
                 Section::make('Statuts et observations')
