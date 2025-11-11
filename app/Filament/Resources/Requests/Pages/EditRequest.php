@@ -28,12 +28,8 @@ class EditRequest extends EditRecord
         // Charger les attachments existants
         $data['attachments'] = $this->record->documents->pluck('file_name')->toArray();
 
-        // Charger les parcelles existantes
-        $data['parcels'] = $this->record->parcels->map(function ($parcel) {
-            return [
-                'parcel_id' => $parcel->ident,
-            ];
-        })->toArray();
+        // Charger les parcelles existantes (identifiants)
+        $data['parcels'] = $this->record->parcels->pluck('ident')->toArray();
 
         return $data;
     }
