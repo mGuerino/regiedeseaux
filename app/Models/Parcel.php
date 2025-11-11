@@ -32,7 +32,7 @@ class Parcel extends Model
 
     public function requests(): BelongsToMany
     {
-        return $this->belongsToMany(Request::class, 'parcel_request', 'parcel_id', 'request_id')
+        return $this->belongsToMany(Request::class, 'parcel_request', 'parcel_id', 'request_id', 'ident', 'id')
             ->using(ParcelRequest::class)
             ->withPivot(['label_x', 'label_y', 'section_number', 'parcel_name'])
             ->withTimestamps();
