@@ -28,6 +28,13 @@ class EditRequest extends EditRecord
         // Charger les attachments existants
         $data['attachments'] = $this->record->documents->pluck('file_name')->toArray();
 
+        // Charger les parcelles existantes
+        $data['parcels'] = $this->record->parcels->map(function ($parcel) {
+            return [
+                'parcel_id' => $parcel->ident,
+            ];
+        })->toArray();
+
         return $data;
     }
 
@@ -40,6 +47,12 @@ class EditRequest extends EditRecord
         if (isset($data['attachments'])) {
             $this->newAttachments = $data['attachments'];
             unset($data['attachments']);
+        }
+
+        // Stocker temporairement les parcelles pour les traiter après la sauvegarde
+        if (isset($data['parcels'])) {
+            $this->parcels = $data['parcels'];
+            unset($data['parcels']);
         }
 
         return $data;
@@ -69,7 +82,21 @@ class EditRequest extends EditRecord
                 $this->record->documents()->whereIn('file_name', $removedFiles)->delete();
             }
         }
+
+        // Synchroniser les parcelles avec la demande
+        if (! empty($this->parcels)) {
+            $parcelsToSync = [];
+            foreach ($this->parcels as $parcel) {
+                $parcelsToSync[] = $parcel['parcel_id'];
+            }
+            $this->record->parcels()->sync($parcelsToSync);
+        } else {
+            // Si aucune parcelle n'est fournie, détacher toutes les parcelles
+            $this->record->parcels()->detach();
+        }
     }
 
     protected ?array $newAttachments = null;
+
+    protected ?array $parcels = null;
 }

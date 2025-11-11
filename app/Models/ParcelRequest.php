@@ -15,10 +15,6 @@ class ParcelRequest extends Pivot
     protected $fillable = [
         'request_id',
         'parcel_id',
-        'label_x',
-        'label_y',
-        'section_number',
-        'parcel_name',
     ];
 
     public function request(): BelongsTo

@@ -24,6 +24,12 @@ class CreateRequest extends CreateRecord
             unset($data['attachments']);
         }
 
+        // Stocker temporairement les parcelles pour les traiter après la création
+        if (isset($data['parcels'])) {
+            $this->parcels = $data['parcels'];
+            unset($data['parcels']);
+        }
+
         return $data;
     }
 
@@ -41,7 +47,14 @@ class CreateRequest extends CreateRecord
                 ]);
             }
         }
+
+        // Attacher les parcelles à la demande
+        if (! empty($this->parcels)) {
+            $this->record->parcels()->attach($this->parcels);
+        }
     }
 
     protected ?array $attachments = null;
+
+    protected ?array $parcels = null;
 }

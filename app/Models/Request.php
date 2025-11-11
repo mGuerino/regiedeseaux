@@ -78,7 +78,6 @@ class Request extends Model
     {
         return $this->belongsToMany(Parcel::class, 'parcel_request', 'request_id', 'parcel_id', 'id', 'ident')
             ->using(ParcelRequest::class)
-            ->withPivot(['label_x', 'label_y', 'section_number', 'parcel_name'])
             ->withTimestamps();
     }
 

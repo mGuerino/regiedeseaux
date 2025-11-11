@@ -76,72 +76,69 @@ class RequestForm
                     ]),
 
                 Section::make('Parcelles')
-                    ->description('Sélectionnez une ou plusieurs parcelles')
+                    ->description('Sélectionnez une section puis une ou plusieurs parcelles')
                     ->schema([
-                        Repeater::make('parcels')
+                        Select::make('section')
+                            ->label('Section')
+                            ->searchable()
+                            ->preload()
+                            ->options(function (callable $get) {
+                                $municipalityCode = $get('municipality_code');
+
+                                if (!$municipalityCode) {
+                                    return [];
+                                }
+
+                                $municipality = \App\Models\Municipality::find($municipalityCode);
+
+                                if (!$municipality) {
+                                    return [];
+                                }
+
+                                return $municipality->sections()
+                                    ->filter()
+                                    ->mapWithKeys(fn ($section) => [$section => $section]);
+                            })
+                            ->native(false)
+                            ->reactive()
+                            ->disabled(fn (callable $get) => !$get('municipality_code'))
+                            ->helperText('Veuillez d\'abord sélectionner une commune')
+                            ->afterStateUpdated(fn (callable $set) => $set('parcels', null)),
+
+                        Select::make('parcels')
                             ->label('Parcelles')
-                            ->relationship()
-                            ->schema([
-                                Grid::make(2)
-                                    ->schema([
-                                        Select::make('section_number')
-                                            ->label('Section')
-                                            ->options(function (callable $get) {
-                                                $municipalityCode = $get('../../municipality_code');
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->options(function (callable $get) {
+                                $municipalityCode = $get('municipality_code');
+                                $section = $get('section');
 
-                                                if (!$municipalityCode) {
-                                                    return [];
-                                                }
+                                if (!$municipalityCode) {
+                                    return [];
+                                }
 
-                                                $municipality = \App\Models\Municipality::where('code', $municipalityCode)->first();
+                                $municipality = \App\Models\Municipality::where('code', $municipalityCode)->first();
 
-                                                if (!$municipality) {
-                                                    return [];
-                                                }
+                                if (!$municipality) {
+                                    return [];
+                                }
 
-                                                return $municipality->sections()
-                                                    ->mapWithKeys(fn ($section) => [$section => $section])
-                                                    ->toArray();
-                                            })
-                                            ->searchable()
-                                            ->native(false)
-                                            ->required()
-                                            ->disabled(fn (callable $get) => !$get('../../municipality_code'))
-                                            ->helperText('Veuillez d\'abord sélectionner une commune')
-                                            ->reactive(),
+                                $query = Parcel::where('codcomm', $municipality->code_with_division);
 
-                                        Select::make('parcel_id')
-                                            ->label('Parcelle')
-                                            ->options(function (callable $get) {
-                                                $municipalityCode = $get('../../municipality_code');
-                                                $sectionNumber = $get('section_number');
+                                if ($section) {
+                                    $query->where('ccosec', $section);
+                                }
 
-                                                if (!$municipalityCode || !$sectionNumber) {
-                                                    return [];
-                                                }
-
-                                                $municipality = \App\Models\Municipality::where('code', $municipalityCode)->first();
-
-                                                if (!$municipality) {
-                                                    return [];
-                                                }
-
-                                                return Parcel::where('codcomm', $municipality->code_with_division)
-                                                    ->where('ccosec', $sectionNumber)
-                                                    ->orderBy('ident')
-                                                    ->pluck('ident', 'ident');
-                                            })
-                                            ->searchable()
-                                            ->native(false)
-                                            ->required()
-                                            ->disabled(fn (callable $get) => !$get('section_number'))
-                                            ->helperText('Veuillez d\'abord sélectionner une section'),
-                                    ]),
-                            ])
-                            ->columns(1)
-                            ->defaultItems(0)
-                            ->addActionLabel('Ajouter une parcelle')
-                            ->required(),
+                                return $query->orderBy('ident')
+                                    ->pluck('ident', 'ident');
+                            })
+                            ->native(false)
+                            ->required()
+                            ->disabled(fn (callable $get) => !$get('municipality_code'))
+                            ->helperText(fn (callable $get) => $get('section')
+                                ? 'Parcelles de la section sélectionnée'
+                                : 'Sélectionnez une section pour filtrer les parcelles'),
                     ]),
 
                 Section::make('Rues')
@@ -156,7 +153,7 @@ class RequestForm
                                     ->options(function (callable $get) {
                                         $municipalityCode = $get('../../municipality_code');
 
-                                        if (!$municipalityCode) {
+                                        if (! $municipalityCode) {
                                             return [];
                                         }
 
@@ -167,7 +164,7 @@ class RequestForm
                                     ->searchable()
                                     ->native(false)
                                     ->required()
-                                    ->disabled(fn (callable $get) => !$get('../../municipality_code'))
+                                    ->disabled(fn (callable $get) => ! $get('../../municipality_code'))
                                     ->helperText('Veuillez d\'abord sélectionner une commune'),
 
                             ])
