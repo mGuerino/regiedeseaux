@@ -88,26 +88,11 @@ class RequestForm
                                             ->label('Section')
                                             ->maxLength(50),
 
-                                        TextInput::make('parcel_name')
-                                            ->label('Nom de la parcelle')
-                                            ->maxLength(255),
-
                                         Select::make('parcel_id')
                                             ->label('Parcelle')
                                             ->options(fn () => Parcel::pluck('ident', 'ident'))
                                             ->searchable()
                                             ->native(false),
-                                    ]),
-
-                                Grid::make(2)
-                                    ->schema([
-                                        TextInput::make('label_x')
-                                            ->label('Label X')
-                                            ->numeric(),
-
-                                        TextInput::make('label_y')
-                                            ->label('Label Y')
-                                            ->numeric(),
                                     ]),
                             ])
                             ->columns(1)
@@ -125,18 +110,24 @@ class RequestForm
                             ->schema([
                                 Select::make('CDRURU')
                                     ->label('Rue')
-                                    ->options(function () {
-                                        return Road::orderBy('name')->pluck('name', 'CDRURU');
+                                    ->options(function (callable $get) {
+                                        $municipalityCode = $get('../../municipality_code');
+
+                                        if (!$municipalityCode) {
+                                            return [];
+                                        }
+
+                                        return Road::where('municipality_code', $municipalityCode)
+                                            ->orderBy('name')
+                                            ->pluck('name', 'CDRURU');
                                     })
                                     ->searchable()
                                     ->native(false)
-                                    ->required(),
+                                    ->required()
+                                    ->disabled(fn (callable $get) => !$get('../../municipality_code'))
+                                    ->helperText('Veuillez d\'abord sélectionner une commune'),
 
-                                TextInput::make('road_name')
-                                    ->label('Libellé de la rue')
-                                    ->maxLength(255),
                             ])
-                            ->columns(2)
                             ->defaultItems(0)
                             ->addActionLabel('Ajouter une rue')
                             ->required(),
