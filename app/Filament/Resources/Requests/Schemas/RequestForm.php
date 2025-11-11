@@ -18,6 +18,24 @@ use Filament\Schemas\Schema;
 
 class RequestForm
 {
+    protected static function makeAgentSelect(string $field, string $label, string $type): Select
+    {
+        return Select::make($field)
+            ->label($label)
+            ->options(
+                Agent::where('type', $type)
+                    ->where('is_active', true)
+                    ->pluck('name', 'id')
+            )
+            ->default(function () use ($type) {
+                return Agent::where('type', $type)
+                    ->where('is_default', true)
+                    ->first()?->id;
+            })
+            ->searchable()
+            ->native(false);
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -84,13 +102,13 @@ class RequestForm
                             ->options(function (callable $get) {
                                 $municipalityCode = $get('municipality_code');
 
-                                if (!$municipalityCode) {
+                                if (! $municipalityCode) {
                                     return [];
                                 }
 
                                 $municipality = \App\Models\Municipality::find($municipalityCode);
 
-                                if (!$municipality) {
+                                if (! $municipality) {
                                     return [];
                                 }
 
@@ -100,7 +118,7 @@ class RequestForm
                             })
                             ->native(false)
                             ->reactive()
-                            ->disabled(fn (callable $get) => !$get('municipality_code'))
+                            ->disabled(fn (callable $get) => ! $get('municipality_code'))
                             ->helperText('Veuillez d\'abord sélectionner une commune')
                             ->afterStateUpdated(fn (callable $set) => $set('parcels', null)),
 
@@ -113,13 +131,13 @@ class RequestForm
                                 $municipalityCode = $get('municipality_code');
                                 $section = $get('section');
 
-                                if (!$municipalityCode) {
+                                if (! $municipalityCode) {
                                     return [];
                                 }
 
                                 $municipality = \App\Models\Municipality::where('code', $municipalityCode)->first();
 
-                                if (!$municipality) {
+                                if (! $municipality) {
                                     return [];
                                 }
 
@@ -134,7 +152,7 @@ class RequestForm
                             })
                             ->native(false)
                             ->required()
-                            ->disabled(fn (callable $get) => !$get('municipality_code'))
+                            ->disabled(fn (callable $get) => ! $get('municipality_code'))
                             ->helperText(fn (callable $get) => $get('section')
                                 ? 'Parcelles de la section sélectionnée'
                                 : 'Sélectionnez une section pour filtrer les parcelles'),
@@ -152,7 +170,7 @@ class RequestForm
                             ->options(function (callable $get) {
                                 $municipalityCode = $get('municipality_code');
 
-                                if (!$municipalityCode) {
+                                if (! $municipalityCode) {
                                     return [];
                                 }
 
@@ -162,7 +180,7 @@ class RequestForm
                             })
                             ->native(false)
                             ->required()
-                            ->disabled(fn (callable $get) => !$get('municipality_code'))
+                            ->disabled(fn (callable $get) => ! $get('municipality_code'))
                             ->helperText('Veuillez d\'abord sélectionner une commune'),
                     ]),
 
@@ -203,52 +221,13 @@ class RequestForm
                     ->schema([
                         Grid::make(3)
                             ->schema([
-                                Select::make('signatory_id')
-                                    ->label('Signataire')
-                                    ->options(
-                                        Agent::where('type', 'SIGNATAIRE')
-                                            ->where('is_active', true)
-                                            ->pluck('name', 'id')
-                                    )
-                                    ->default(function () {
-                                        return Agent::where('type', 'SIGNATAIRE')
-                                            ->where('is_default', true)
-                                            ->first()?->id;
-                                    })
-                                    ->searchable()
-                                    ->native(false)
+                                static::makeAgentSelect('signatory_id', 'Signataire', 'SIGNATAIRE')
                                     ->columnSpan(1),
 
-                                Select::make('certifier_id')
-                                    ->label('Attestant')
-                                    ->options(
-                                        Agent::where('type', 'ATTESTANT')
-                                            ->where('is_active', true)
-                                            ->pluck('name', 'id')
-                                    )
-                                    ->default(function () {
-                                        return Agent::where('type', 'ATTESTANT')
-                                            ->where('is_default', true)
-                                            ->first()?->id;
-                                    })
-                                    ->searchable()
-                                    ->native(false)
+                                static::makeAgentSelect('certifier_id', 'Attestant', 'ATTESTANT')
                                     ->columnSpan(1),
 
-                                Select::make('contact_person_id')
-                                    ->label('Interlocuteur')
-                                    ->options(
-                                        Agent::where('type', 'INTERLOCUTEUR')
-                                            ->where('is_active', true)
-                                            ->pluck('name', 'id')
-                                    )
-                                    ->default(function () {
-                                        return Agent::where('type', 'INTERLOCUTEUR')
-                                            ->where('is_default', true)
-                                            ->first()?->id;
-                                    })
-                                    ->searchable()
-                                    ->native(false)
+                                static::makeAgentSelect('contact_person_id', 'Interlocuteur', 'INTERLOCUTEUR')
                                     ->columnSpan(1),
                             ]),
                     ]),
@@ -260,7 +239,7 @@ class RequestForm
                             ->multiple()
                             ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
                             ->directory(fn () => now()->format('Y.m'))
-                            ->visibility('public')
+                            ->visibility('private')
                             ->maxSize(10240)
                             ->helperText('Formats acceptés: PDF, JPG, PNG, XLSX, XLS, DOC, DOCX (max 10 MB)'),
                     ])
