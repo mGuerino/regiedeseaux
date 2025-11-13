@@ -18,7 +18,7 @@ class ParcelResource extends Resource
 {
     protected static ?string $model = Parcel::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSquare3Stack3d;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSquares2x2;
 
     protected static ?string $navigationLabel = 'Parcelles';
 
