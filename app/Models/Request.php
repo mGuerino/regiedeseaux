@@ -15,7 +15,7 @@ class Request extends Model
 
     protected $fillable = [
         'applicant_id',
-        'contact',
+        'contact_id',
         'reference',
         'request_date',
         'response_date',
@@ -47,6 +47,11 @@ class Request extends Model
     public function applicant(): BelongsTo
     {
         return $this->belongsTo(Applicant::class);
+    }
+
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(Contact::class);
     }
 
     public function signatory(): BelongsTo
