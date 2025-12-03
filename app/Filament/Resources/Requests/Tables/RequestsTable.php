@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Requests\Tables;
 
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -9,11 +10,14 @@ use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use PhpOffice\PhpWord\Element\TextRun;
+use PhpOffice\PhpWord\TemplateProcessor;
 
 class RequestsTable
 {
@@ -178,6 +182,62 @@ class RequestsTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+                Action::make('generate_document')
+                    ->label('Générer document')
+                    ->icon(Heroicon::Document)
+                    ->action(function ($record) {
+                        $templateProcessor = new TemplateProcessor(base_path('templates/template_attestation.docx'));
+
+                        // Adresse avec sauts de ligne
+                        $addressTextRun = new TextRun();
+                        $addressTextRun->addText($record->applicant->adress ?? '');
+                        $addressTextRun->addTextBreak();
+                        if ($record->applicant->address2) {
+                            $addressTextRun->addText($record->applicant->address2);
+                            $addressTextRun->addTextBreak();
+                        }
+                        $addressTextRun->addText(($record->applicant->postal_code ?? '') . ' ' . ($record->applicant->city ?? ''));
+
+                        $parcelsList = $record->parcels->map(function ($parcel) {
+                            return $parcel->pivot->parcel_name ?: $parcel->ident;
+                        })->implode(', ');
+                        //refacotorisation des lignes en dessous
+                        $mapping = [
+                            'demandeur.nom' => $record->applicant->last_name ?? 'N/A',
+                            'demandeur.prenom' => $record->applicant->first_name ?? 'N/A',
+                            'demandeur.contact' => $record->contact ?? 'N/A',
+                            'demandeur.adresse' => $addressTextRun,
+                            'reference' => $record->reference ?? 'N/A',
+                            'commune.nom' => $record->municipality->name ?? 'N/A',
+                            'demande.date' => $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A',
+                            'demande.adresse' => $record->request_address ?? 'N/A',
+                            'parcelles' => $parcelsList ?? 'aucune parcelles',
+                            'interlocuteur.nom' => $record->contactPerson->name ?? 'N/A',
+                            'interlocuteur.tel' => $record->contactPerson->phone ?? 'N/A',
+                        ];
+
+                        foreach ($mapping as $key => $value) {
+                            if ($key === 'demandeur.adresse') {
+                                $templateProcessor->setComplexValue($key, $value);
+                            } else {
+                                $templateProcessor->setValue($key, $value);
+                            }
+                        }
+
+                        /* $templateProcessor->setValue('demandeur.nom', $record->applicant->last_name ?? 'N/A'); */
+                        /* $templateProcessor->setValue('demandeur.prenom', $record->applicant->first_name ?? 'N/A'); */
+                        /* $templateProcessor->setValue('demandeur.contact', $record->contact ?? 'N/A'); */
+                        /* $templateProcessor->setComplexValue('demandeur.adresse', $addressTextRun); */
+                        /* $templateProcessor->setValue('reference', $record->reference ?? 'N/A'); */
+                        /* $templateProcessor->setValue('commune.nom', $record->municipality->name ?? 'N/A'); */
+                        /* $templateProcessor->setValue('demande.date', $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A'); */
+                        /* $templateProcessor->setValue('demande.adresse', $record->request_address ?? 'N/A'); */
+                        /* $templateProcessor->setValue('parcelles', $parcelsList ?: 'N/A'); */
+                        /* $templateProcessor->setValue('interlocuteur.nom', $record->contactPerson->name ?? 'N/A'); */
+                        /* $templateProcessor->setValue('interlocuteur.tel', $record->contactPerson->phone ?? 'N/A'); */
+
+                        $templateProcessor->saveAs("attestation_{$record->id}.docx");
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
