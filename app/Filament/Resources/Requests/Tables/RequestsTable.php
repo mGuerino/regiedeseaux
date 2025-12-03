@@ -59,9 +59,11 @@ class RequestsTable
                     })
                     ->toggleable(),
 
-                TextColumn::make('contact')
+                TextColumn::make('contact.last_name')
                     ->label('Contact')
-                    ->searchable()
+                    ->searchable(['first_name', 'last_name', 'email'])
+                    ->formatStateUsing(fn ($record) => $record->contact ? "{$record->contact->first_name} {$record->contact->last_name}" : '-')
+                    ->sortable()
                     ->toggleable(),
 
                 TextColumn::make('request_date')
@@ -189,23 +191,23 @@ class RequestsTable
                         $templateProcessor = new TemplateProcessor(base_path('templates/template_attestation.docx'));
 
                         // Adresse avec sauts de ligne
-                        $addressTextRun = new TextRun();
+                        $addressTextRun = new TextRun;
                         $addressTextRun->addText($record->applicant->adress ?? '');
                         $addressTextRun->addTextBreak();
                         if ($record->applicant->address2) {
                             $addressTextRun->addText($record->applicant->address2);
                             $addressTextRun->addTextBreak();
                         }
-                        $addressTextRun->addText(($record->applicant->postal_code ?? '') . ' ' . ($record->applicant->city ?? ''));
+                        $addressTextRun->addText(($record->applicant->postal_code ?? '').' '.($record->applicant->city ?? ''));
 
                         $parcelsList = $record->parcels->map(function ($parcel) {
                             return $parcel->pivot->parcel_name ?: $parcel->ident;
                         })->implode(', ');
-                        //refacotorisation des lignes en dessous
+                        // refacotorisation des lignes en dessous
                         $mapping = [
                             'demandeur.nom' => $record->applicant->last_name ?? 'N/A',
                             'demandeur.prenom' => $record->applicant->first_name ?? 'N/A',
-                            'demandeur.contact' => $record->contact ?? 'N/A',
+                            'demandeur.contact' => $record->contact ? "{$record->contact->first_name} {$record->contact->last_name}" : 'N/A',
                             'demandeur.adresse' => $addressTextRun,
                             'reference' => $record->reference ?? 'N/A',
                             'commune.nom' => $record->municipality->name ?? 'N/A',
@@ -223,18 +225,6 @@ class RequestsTable
                                 $templateProcessor->setValue($key, $value);
                             }
                         }
-
-                        /* $templateProcessor->setValue('demandeur.nom', $record->applicant->last_name ?? 'N/A'); */
-                        /* $templateProcessor->setValue('demandeur.prenom', $record->applicant->first_name ?? 'N/A'); */
-                        /* $templateProcessor->setValue('demandeur.contact', $record->contact ?? 'N/A'); */
-                        /* $templateProcessor->setComplexValue('demandeur.adresse', $addressTextRun); */
-                        /* $templateProcessor->setValue('reference', $record->reference ?? 'N/A'); */
-                        /* $templateProcessor->setValue('commune.nom', $record->municipality->name ?? 'N/A'); */
-                        /* $templateProcessor->setValue('demande.date', $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A'); */
-                        /* $templateProcessor->setValue('demande.adresse', $record->request_address ?? 'N/A'); */
-                        /* $templateProcessor->setValue('parcelles', $parcelsList ?: 'N/A'); */
-                        /* $templateProcessor->setValue('interlocuteur.nom', $record->contactPerson->name ?? 'N/A'); */
-                        /* $templateProcessor->setValue('interlocuteur.tel', $record->contactPerson->phone ?? 'N/A'); */
 
                         $templateProcessor->saveAs("attestation_{$record->id}.docx");
                     }),

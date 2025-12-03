@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Requests\Schemas;
 
 use App\Models\Agent;
 use App\Models\Applicant;
+use App\Models\Contact;
 use App\Models\Parcel;
 use App\Models\Road;
 use Filament\Forms\Components\DatePicker;
@@ -70,10 +71,32 @@ class RequestForm
                                     ->maxLength(255)
                                     ->columnSpan(1),
 
-                                TextInput::make('contact')
+                                Select::make('contact_id')
                                     ->label('Contact')
+                                    ->relationship('contact', 'last_name')
+                                    ->searchable(['first_name', 'last_name', 'email'])
+                                    ->getOptionLabelFromRecordUsing(fn (Contact $record) => "{$record->first_name} {$record->last_name}")
+                                    ->preload()
                                     ->required()
-                                    ->maxLength(255)
+                                    ->native(false)
+                                    ->createOptionForm([
+                                        TextInput::make('first_name')
+                                            ->label('Prénom')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('last_name')
+                                            ->label('Nom')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('email')
+                                            ->label('Email')
+                                            ->email()
+                                            ->maxLength(255),
+                                        TextInput::make('phone')
+                                            ->label('Téléphone')
+                                            ->tel()
+                                            ->maxLength(255),
+                                    ])
                                     ->columnSpan(1),
 
                                 DatePicker::make('request_date')
