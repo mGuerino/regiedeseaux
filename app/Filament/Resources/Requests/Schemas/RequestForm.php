@@ -208,8 +208,9 @@ class RequestForm
                             ->helperText(fn (callable $get) => $get('section')
                                 ? 'Parcelles de la section sélectionnée'
                                 : 'Sélectionnez une section pour filtrer les parcelles')
-                            ->createOptionForm(function (callable $get) {
-                                $section = $get('../../section') ?? '??';
+                            ->createOptionForm(function ($livewire) {
+                                // Récupérer la section depuis les données du formulaire Livewire
+                                $section = data_get($livewire, 'data.section', '??');
                                 
                                 return [
                                     TextInput::make('dnupla')
@@ -223,7 +224,7 @@ class RequestForm
                                         ->extraInputAttributes(['type' => 'number'])
                                         ->helperText('Utilisez les flèches pour incrémenter/décrémenter')
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function (callable $set, $state, callable $get) use ($section) {
+                                        ->afterStateUpdated(function (callable $set, $state) use ($section) {
                                             if ($state) {
                                                 $formatted = str_pad($state, 4, '0', STR_PAD_LEFT);
                                                 $set('parcel_preview', $section . ' ' . $formatted);
