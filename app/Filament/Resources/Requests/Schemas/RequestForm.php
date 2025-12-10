@@ -63,6 +63,35 @@ class RequestForm
                                     ->preload()
                                     ->required()
                                     ->native(false)
+                                    ->createOptionForm([
+                                        TextInput::make('last_name')
+                                            ->label('Nom')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('first_name')
+                                            ->label('Prénom')
+                                            ->maxLength(255),
+                                        TextInput::make('address')
+                                            ->label('Adresse')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('postal_code')
+                                            ->label('Code postal')
+                                            ->required()
+                                            ->maxLength(10),
+                                        TextInput::make('city')
+                                            ->label('Ville')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('email')
+                                            ->label('Email')
+                                            ->email()
+                                            ->maxLength(255),
+                                        TextInput::make('phone1')
+                                            ->label('Téléphone 1')
+                                            ->tel()
+                                            ->maxLength(255),
+                                    ])
                                     ->columnSpan(1),
 
                                 TextInput::make('reference')
@@ -204,7 +233,30 @@ class RequestForm
                             ->native(false)
                             ->required()
                             ->disabled(fn (callable $get) => ! $get('municipality_code'))
-                            ->helperText('Veuillez d\'abord sélectionner une commune'),
+                            ->helperText('Veuillez d\'abord sélectionner une commune')
+                            ->createOptionForm([
+                                TextInput::make('CDRURU')
+                                    ->label('Code rue')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->unique(Road::class, 'CDRURU')
+                                    ->helperText('Code unique de la rue (ex: RUE001)'),
+                                TextInput::make('name')
+                                    ->label('Nom de la rue')
+                                    ->required()
+                                    ->maxLength(255),
+                            ])
+                            ->createOptionUsing(function (array $data, callable $get) {
+                                $municipalityCode = $get('municipality_code');
+                                
+                                $road = Road::create([
+                                    'CDRURU' => $data['CDRURU'],
+                                    'name' => $data['name'],
+                                    'municipality_code' => $municipalityCode,
+                                ]);
+
+                                return $road->CDRURU;
+                            }),
                     ]),
 
                 Section::make('Statuts et observations')
