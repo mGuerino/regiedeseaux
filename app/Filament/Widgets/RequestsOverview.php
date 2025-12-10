@@ -9,18 +9,24 @@ use Illuminate\Support\Facades\DB;
 
 class RequestsOverview extends StatsOverviewWidget
 {
+    protected string $view = 'filament.widgets.requests-overview';
+
+    public ?string $filter = 'all';
+
     protected function getStats(): array
     {
         // Total des demandes
-        $totalRequests = Request::count();
+        $totalRequests = $this->applyStatusFilter(Request::query())->count();
 
         // Demandes ce mois-ci
-        $thisMonthRequests = Request::whereMonth('request_date', now()->month)
+        $thisMonthRequests = $this->applyStatusFilter(Request::query())
+            ->whereMonth('request_date', now()->month)
             ->whereYear('request_date', now()->year)
             ->count();
 
         // Demandes mois dernier
-        $lastMonthRequests = Request::whereMonth('request_date', now()->subMonth()->month)
+        $lastMonthRequests = $this->applyStatusFilter(Request::query())
+            ->whereMonth('request_date', now()->subMonth()->month)
             ->whereYear('request_date', now()->subMonth()->year)
             ->count();
 
@@ -32,10 +38,13 @@ class RequestsOverview extends StatsOverviewWidget
             : "{$monthDifference} par rapport au mois dernier";
 
         // Demandes cette année
-        $thisYearRequests = Request::whereYear('request_date', now()->year)->count();
+        $thisYearRequests = $this->applyStatusFilter(Request::query())
+            ->whereYear('request_date', now()->year)
+            ->count();
 
         // Commune avec le plus de demandes ce mois-ci
-        $topMunicipality = Request::select('municipality_code', DB::raw('count(*) as total'))
+        $topMunicipality = $this->applyStatusFilter(Request::query())
+            ->select('municipality_code', DB::raw('count(*) as total'))
             ->with('municipality')
             ->whereMonth('request_date', now()->month)
             ->whereYear('request_date', now()->year)
@@ -79,12 +88,32 @@ class RequestsOverview extends StatsOverviewWidget
 
         for ($i = 5; $i >= 0; $i--) {
             $date = now()->subMonths($i);
-            $count = Request::whereMonth('request_date', $date->month)
+            $count = $this->applyStatusFilter(Request::query())
+                ->whereMonth('request_date', $date->month)
                 ->whereYear('request_date', $date->year)
                 ->count();
             $data[] = $count;
         }
 
         return $data;
+    }
+
+    protected function getFilters(): ?array
+    {
+        return [
+            'all' => 'Toutes les demandes',
+            '1' => 'En cours',
+            '2' => 'Terminée',
+            '3' => 'Annulée',
+        ];
+    }
+
+    protected function applyStatusFilter($query)
+    {
+        if ($this->filter !== 'all') {
+            $query->where('request_status', $this->filter);
+        }
+
+        return $query;
     }
 }
