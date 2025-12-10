@@ -12,6 +12,7 @@ class Document extends Model
 
     protected $fillable = [
         'request_id',
+        'document_type',
         'document_name',
         'file_name',
         'observations',
@@ -23,6 +24,7 @@ class Document extends Model
     {
         return [
             'created_date' => 'date',
+            'document_type' => 'string',
         ];
     }
 
