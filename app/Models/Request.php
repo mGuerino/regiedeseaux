@@ -81,12 +81,14 @@ class Request extends Model
 
     public function parcels(): BelongsToMany
     {
-        $municipalityCodeWithDivision = $this->municipality ? $this->municipality->code_with_division : null;
-        
         return $this->belongsToMany(Parcel::class, 'parcel_request', 'request_id', 'parcel_id', 'id', 'ident')
             ->using(ParcelRequest::class)
-            ->when($municipalityCodeWithDivision, function ($query) use ($municipalityCodeWithDivision) {
-                $query->where('parcels.codcomm', $municipalityCodeWithDivision);
+            ->whereExists(function ($query) {
+                $query->selectRaw('1')
+                    ->from('requests')
+                    ->join('municipalities', 'municipalities.code', '=', 'requests.municipality_code')
+                    ->whereColumn('municipalities.code_with_division', 'parcels.codcomm')
+                    ->whereColumn('requests.id', 'parcel_request.request_id');
             })
             ->withTimestamps();
     }
