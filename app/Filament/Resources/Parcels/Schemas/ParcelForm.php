@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Parcels\Schemas;
 
+use App\Models\Municipality;
+use App\Models\Parcel;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
@@ -18,13 +20,6 @@ class ParcelForm
                     ->schema([
                         Grid::make(2)
                             ->schema([
-                                TextInput::make('ident')
-                                    ->label('Identifiant')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->disabled(fn ($record) => $record !== null)
-                                    ->columnSpan(1),
-
                                 Select::make('codcomm')
                                     ->label('Commune')
                                     ->relationship('municipality', 'name', function ($query) {
@@ -34,80 +29,132 @@ class ParcelForm
                                     ->preload()
                                     ->required()
                                     ->native(false)
-                                    ->columnSpan(1),
+                                    ->reactive()
+                                    ->afterStateUpdated(fn (callable $set) => $set('ccosec', null))
+                                    ->columnSpan(2),
 
-                                TextInput::make('ccosec')
+                                Select::make('ccosec')
                                     ->label('Section cadastrale')
                                     ->required()
-                                    ->maxLength(255)
-                                    ->columnSpan(1),
+                                    ->searchable()
+                                    ->options(function (callable $get) {
+                                        $codcomm = $get('codcomm');
+                                        
+                                        if (!$codcomm) {
+                                            return [];
+                                        }
 
-                                TextInput::make('sect_cad')
-                                    ->label('Section')
-                                    ->maxLength(255)
+                                        $municipality = Municipality::where('code_with_division', $codcomm)->first();
+                                        
+                                        if (!$municipality) {
+                                            return [];
+                                        }
+
+                                        return $municipality->sections()
+                                            ->filter()
+                                            ->mapWithKeys(fn ($section) => [$section => $section]);
+                                    })
+                                    ->native(false)
+                                    ->reactive()
+                                    ->disabled(fn (callable $get) => !$get('codcomm'))
+                                    ->helperText('Sélectionnez d\'abord une commune')
+                                    ->afterStateUpdated(function (callable $set, $state, callable $get) {
+                                        // Mettre à jour sect_cad
+                                        $set('sect_cad', $state);
+                                        
+                                        // Mettre à jour l'aperçu si le numéro est déjà saisi
+                                        $parcelle = $get('parcelle');
+                                        if ($parcelle && $state) {
+                                            $formatted = str_pad($parcelle, 4, '0', STR_PAD_LEFT);
+                                            $set('parcel_preview', $state . ' ' . $formatted);
+                                            $set('ident', $state . $formatted);
+                                            $set('dnupla', $formatted);
+                                        }
+                                    })
                                     ->columnSpan(1),
 
                                 TextInput::make('parcelle')
                                     ->label('Numéro de parcelle')
                                     ->required()
                                     ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(9999)
+                                    ->default(1)
+                                    ->step(1)
+                                    ->extraInputAttributes(['type' => 'number'])
+                                    ->helperText('Utilisez les flèches pour incrémenter/décrémenter')
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(function (callable $set, $state, callable $get) {
+                                        $section = $get('ccosec');
+                                        if ($state && $section) {
+                                            $formatted = str_pad($state, 4, '0', STR_PAD_LEFT);
+                                            $ident = $section . $formatted;
+                                            $set('ident', $ident);
+                                            $set('dnupla', $formatted);
+                                            $set('parcel_preview', $section . ' ' . $formatted);
+                                        }
+                                    })
+                                    ->rules([
+                                        function (callable $get) {
+                                            return function (string $attribute, $value, \Closure $fail) use ($get) {
+                                                $codcomm = $get('codcomm');
+                                                $section = $get('ccosec');
+                                                
+                                                if (!$codcomm || !$section) {
+                                                    return;
+                                                }
+                                                
+                                                $dnupla = str_pad($value, 4, '0', STR_PAD_LEFT);
+                                                $ident = $section . $dnupla;
+                                                
+                                                $exists = Parcel::where('ident', $ident)
+                                                    ->where('codcomm', $codcomm)
+                                                    ->exists();
+                                                
+                                                if ($exists) {
+                                                    $fail("La parcelle {$ident} existe déjà pour cette commune.");
+                                                }
+                                            };
+                                        },
+                                    ])
+                                    ->columnSpan(1),
+
+                                TextInput::make('parcel_preview')
+                                    ->label('Aperçu de la parcelle')
+                                    ->disabled()
+                                    ->dehydrated(false)
+                                    ->default('-- ----')
+                                    ->hint('Identifiant final de la parcelle')
+                                    ->extraAttributes(['class' => 'font-mono text-lg font-bold text-primary-600'])
+                                    ->columnSpan(2),
+
+                                // Champs cachés générés automatiquement
+                                TextInput::make('ident')
+                                    ->label('Identifiant')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->readOnly()
+                                    ->dehydrated()
+                                    ->hidden()
                                     ->columnSpan(1),
 
                                 TextInput::make('dnupla')
                                     ->label('Plan')
                                     ->maxLength(255)
+                                    ->readOnly()
+                                    ->dehydrated()
+                                    ->hidden()
+                                    ->columnSpan(1),
+
+                                TextInput::make('sect_cad')
+                                    ->label('Section')
+                                    ->maxLength(255)
+                                    ->readOnly()
+                                    ->dehydrated()
+                                    ->hidden()
                                     ->columnSpan(1),
                             ]),
                     ]),
-
-                Section::make('Codes administratifs')
-                    ->description('Informations cadastrales complémentaires')
-                    ->schema([
-                        Grid::make(3)
-                            ->schema([
-                                TextInput::make('ccocomm')
-                                    ->label('Code commune')
-                                    ->numeric()
-                                    ->columnSpan(1),
-
-                                TextInput::make('ccodep')
-                                    ->label('Code département')
-                                    ->numeric()
-                                    ->columnSpan(1),
-
-                                TextInput::make('ccodir')
-                                    ->label('Code direction')
-                                    ->numeric()
-                                    ->columnSpan(1),
-
-                                TextInput::make('ccoifp')
-                                    ->label('Code IFP')
-                                    ->numeric()
-                                    ->columnSpan(1),
-
-                                TextInput::make('ccopre')
-                                    ->label('Code préfixe')
-                                    ->maxLength(255)
-                                    ->columnSpan(1),
-
-                                TextInput::make('ccovoi')
-                                    ->label('Code voie')
-                                    ->maxLength(255)
-                                    ->columnSpan(1),
-
-                                TextInput::make('codeident')
-                                    ->label('Code identifiant')
-                                    ->maxLength(255)
-                                    ->columnSpan(1),
-
-                                TextInput::make('cprsecr')
-                                    ->label('Code secret')
-                                    ->maxLength(255)
-                                    ->columnSpan(1),
-                            ]),
-                    ])
-                    ->collapsible()
-                    ->collapsed(),
             ]);
     }
 }

@@ -209,8 +209,9 @@ class RequestForm
                                 ? 'Parcelles de la section sélectionnée'
                                 : 'Sélectionnez une section pour filtrer les parcelles')
                             ->createOptionForm(function ($livewire) {
-                                // Récupérer la section depuis les données du formulaire Livewire
+                                // Récupérer la section et la commune depuis les données du formulaire Livewire
                                 $section = data_get($livewire, 'data.section', '??');
+                                $municipalityCode = data_get($livewire, 'data.municipality_code');
                                 
                                 return [
                                     TextInput::make('dnupla')
@@ -229,7 +230,33 @@ class RequestForm
                                                 $formatted = str_pad($state, 4, '0', STR_PAD_LEFT);
                                                 $set('parcel_preview', $section . ' ' . $formatted);
                                             }
-                                        }),
+                                        })
+                                        ->rules([
+                                            function () use ($section, $municipalityCode) {
+                                                return function (string $attribute, $value, \Closure $fail) use ($section, $municipalityCode) {
+                                                    if (!$municipalityCode || !$section) {
+                                                        return;
+                                                    }
+                                                    
+                                                    $municipality = \App\Models\Municipality::find($municipalityCode);
+                                                    if (!$municipality) {
+                                                        return;
+                                                    }
+                                                    
+                                                    $dnupla = str_pad($value, 4, '0', STR_PAD_LEFT);
+                                                    $ident = $section . $dnupla;
+                                                    $codcomm = $municipality->code_with_division;
+                                                    
+                                                    $exists = Parcel::where('ident', $ident)
+                                                        ->where('codcomm', $codcomm)
+                                                        ->exists();
+                                                    
+                                                    if ($exists) {
+                                                        $fail("La parcelle {$ident} existe déjà pour cette commune.");
+                                                    }
+                                                };
+                                            },
+                                        ]),
                                     
                                     TextInput::make('parcel_preview')
                                         ->label('Aperçu de la parcelle')
@@ -262,15 +289,7 @@ class RequestForm
                                 $codeident = str_pad($codcomm, 9, ' ', STR_PAD_RIGHT) . $ident;
                                 $parcelle = $dnuplaNumber;
 
-                                // Vérifier l'unicité de l'ident
-                                $existingParcel = Parcel::where('ident', $ident)
-                                    ->where('codcomm', $codcomm)
-                                    ->first();
-
-                                if ($existingParcel) {
-                                    throw new \Exception("La parcelle {$ident} existe déjà pour cette commune.");
-                                }
-
+                                // La validation de l'unicité est déjà gérée par les rules du formulaire
                                 // Créer la parcelle
                                 $parcel = Parcel::create([
                                     'dnupla' => $dnupla,
