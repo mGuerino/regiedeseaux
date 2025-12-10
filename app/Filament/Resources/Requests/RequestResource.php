@@ -47,6 +47,28 @@ class RequestResource extends Resource
         ];
     }
 
+    /**
+     * Optimisation: Eager load toutes les relations utilisées dans la table
+     * pour éviter le problème N+1
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->with([
+                // Relations principales affichées dans les colonnes
+                'parcels:ident,codcomm,objectid',  // Pour parcels_list column
+                'applicant:id,last_name,first_name',  // Pour applicant.last_name
+                'municipality:code,name,code_with_division',  // Pour municipality.name
+                'contact:id,first_name,last_name',  // Pour contact.last_name
+                
+                // Relations pour les colonnes cachées par défaut
+                // Chargées uniquement si visibles, mais préchargées pour éviter N+1
+                'signatory:id,name',  // Pour signatory.name (toggleable hidden)
+                'certifier:id,name',  // Pour certifier.name (toggleable hidden)
+                'contactPerson:id,name',  // Pour contactPerson.name (toggleable hidden)
+            ]);
+    }
+
     public static function getPages(): array
     {
         return [
