@@ -37,7 +37,7 @@ class GenerateWordAction
         $addressTextRun->addText(($record->applicant->postal_code ?? '').' '.($record->applicant->city ?? ''));
 
         $parcelsList = $record->parcels->map(function ($parcel) {
-            return $parcel->pivot->parcel_name ?: $parcel->ident;
+            return $parcel->ident;
         })->implode(', ');
 
         // Mapping des valeurs pour Word

@@ -50,11 +50,10 @@ class RequestsTable
                 TextColumn::make('parcels_list')
                     ->label('Parcelles')
                     ->badge()
-                    ->getStateUsing(fn ($record) => $record->parcels->map(fn ($parcel) => $parcel->pivot->parcel_name ?: $parcel->ident))
+                    ->getStateUsing(fn ($record) => $record->parcels->map(fn ($parcel) => $parcel->ident))
                     ->searchable(query: function ($query, $search) {
                         return $query->whereHas('parcels', function ($query) use ($search) {
-                            $query->where('ident', 'like', "%{$search}%")
-                                ->orWhere('parcel_request.parcel_name', 'like', "%{$search}%");
+                            $query->where('ident', 'like', "%{$search}%");
                         });
                     })
                     ->toggleable(),
