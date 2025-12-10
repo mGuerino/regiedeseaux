@@ -207,7 +207,89 @@ class RequestForm
                             ->disabled(fn (callable $get) => ! $get('municipality_code'))
                             ->helperText(fn (callable $get) => $get('section')
                                 ? 'Parcelles de la section sélectionnée'
-                                : 'Sélectionnez une section pour filtrer les parcelles'),
+                                : 'Sélectionnez une section pour filtrer les parcelles')
+                            ->createOptionForm(function (callable $get) {
+                                $section = $get('../../section') ?? '??';
+                                
+                                return [
+                                    TextInput::make('dnupla')
+                                        ->label('Numéro de parcelle')
+                                        ->required()
+                                        ->numeric()
+                                        ->minValue(1)
+                                        ->maxValue(9999)
+                                        ->default(1)
+                                        ->step(1)
+                                        ->extraInputAttributes(['type' => 'number'])
+                                        ->helperText('Utilisez les flèches pour incrémenter/décrémenter')
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(function (callable $set, $state, callable $get) use ($section) {
+                                            if ($state) {
+                                                $formatted = str_pad($state, 4, '0', STR_PAD_LEFT);
+                                                $set('parcel_preview', $section . ' ' . $formatted);
+                                            }
+                                        }),
+                                    
+                                    TextInput::make('parcel_preview')
+                                        ->label('Aperçu de la parcelle')
+                                        ->disabled()
+                                        ->dehydrated(false)
+                                        ->default($section . ' 0001')
+                                        ->hint('Identifiant final de la parcelle')
+                                        ->extraAttributes(['class' => 'font-mono text-lg font-bold text-primary-600']),
+                                ];
+                            })
+                            ->createOptionUsing(function (array $data, callable $get) {
+                                $municipalityCode = $get('municipality_code');
+                                $section = $get('section');
+
+                                if (! $municipalityCode || ! $section) {
+                                    throw new \Exception('Veuillez sélectionner une commune et une section avant de créer une parcelle.');
+                                }
+
+                                $municipality = \App\Models\Municipality::find($municipalityCode);
+
+                                if (! $municipality) {
+                                    throw new \Exception('Commune introuvable.');
+                                }
+
+                                // Génération automatique des champs
+                                $dnuplaNumber = (int) $data['dnupla'];
+                                $dnupla = str_pad($dnuplaNumber, 4, '0', STR_PAD_LEFT); // Format: 0001
+                                $ident = $section . $dnupla; // Ex: AB0001
+                                $codcomm = $municipality->code_with_division;
+                                $codeident = str_pad($codcomm, 9, ' ', STR_PAD_RIGHT) . $ident;
+                                $parcelle = $dnuplaNumber;
+
+                                // Vérifier l'unicité de l'ident
+                                $existingParcel = Parcel::where('ident', $ident)
+                                    ->where('codcomm', $codcomm)
+                                    ->first();
+
+                                if ($existingParcel) {
+                                    throw new \Exception("La parcelle {$ident} existe déjà pour cette commune.");
+                                }
+
+                                // Créer la parcelle
+                                $parcel = Parcel::create([
+                                    'dnupla' => $dnupla,
+                                    'ccosec' => $section,
+                                    'sect_cad' => $section,
+                                    'codcomm' => $codcomm,
+                                    'ident' => $ident,
+                                    'codeident' => $codeident,
+                                    'parcelle' => $parcelle,
+                                    'ccocomm' => 0,
+                                    'ccodep' => (int) substr($codcomm, 0, 2),
+                                    'ccodir' => 0,
+                                    'ccoifp' => 0,
+                                    'ccopre' => '',
+                                    'ccovoi' => '',
+                                    'cprsecr' => '',
+                                ]);
+
+                                return $parcel->ident;
+                            }),
                     ]),
 
                 Section::make('Rues')
