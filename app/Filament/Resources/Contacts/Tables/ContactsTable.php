@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\Contacts\Tables;
 
+use App\Filament\Exports\ContactExporter;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ExportAction;
+use Filament\Actions\ExportBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -53,7 +56,15 @@ class ContactsTable
                 EditAction::make(),
             ])
             ->toolbarActions([
+                ExportAction::make()
+                    ->exporter(ContactExporter::class)
+                    ->label('Exporter tout')
+                    ->formats(['csv', 'xlsx']),
                 BulkActionGroup::make([
+                    ExportBulkAction::make()
+                        ->exporter(ContactExporter::class)
+                        ->label('Exporter la sélection')
+                        ->formats(['csv', 'xlsx']),
                     DeleteBulkAction::make(),
                 ]),
             ]);
