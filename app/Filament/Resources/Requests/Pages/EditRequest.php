@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Requests\Pages;
 
+use App\Filament\Actions\GenerateWordAction;
 use App\Filament\Resources\Requests\RequestResource;
 use App\Models\Document;
 use Filament\Actions\DeleteAction;
@@ -17,6 +18,7 @@ class EditRequest extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            GenerateWordAction::make(),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),

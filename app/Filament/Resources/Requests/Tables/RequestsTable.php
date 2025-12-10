@@ -2,7 +2,8 @@
 
 namespace App\Filament\Resources\Requests\Tables;
 
-use Filament\Actions\Action;
+use App\Filament\Actions\GenerateWordAction;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -16,8 +17,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use PhpOffice\PhpWord\Element\TextRun;
-use PhpOffice\PhpWord\TemplateProcessor;
+use Illuminate\Database\Eloquent\Collection;
 
 class RequestsTable
 {
@@ -184,54 +184,18 @@ class RequestsTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
-                Action::make('generate_document')
-                    ->label('Générer document')
-                    ->icon(Heroicon::Document)
-                    ->action(function ($record) {
-                        $templateProcessor = new TemplateProcessor(base_path('templates/template_attestation.docx'));
-
-                        // Adresse avec sauts de ligne
-                        $addressTextRun = new TextRun;
-                        $addressTextRun->addText($record->applicant->adress ?? '');
-                        $addressTextRun->addTextBreak();
-                        if ($record->applicant->address2) {
-                            $addressTextRun->addText($record->applicant->address2);
-                            $addressTextRun->addTextBreak();
-                        }
-                        $addressTextRun->addText(($record->applicant->postal_code ?? '').' '.($record->applicant->city ?? ''));
-
-                        $parcelsList = $record->parcels->map(function ($parcel) {
-                            return $parcel->pivot->parcel_name ?: $parcel->ident;
-                        })->implode(', ');
-                        // refacotorisation des lignes en dessous
-                        $mapping = [
-                            'demandeur.nom' => $record->applicant->last_name ?? 'N/A',
-                            'demandeur.prenom' => $record->applicant->first_name ?? 'N/A',
-                            'demandeur.contact' => $record->contact ? "{$record->contact->first_name} {$record->contact->last_name}" : 'N/A',
-                            'demandeur.adresse' => $addressTextRun,
-                            'reference' => $record->reference ?? 'N/A',
-                            'commune.nom' => $record->municipality->name ?? 'N/A',
-                            'demande.date' => $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A',
-                            'demande.adresse' => $record->request_address ?? 'N/A',
-                            'parcelles' => $parcelsList ?? 'aucune parcelles',
-                            'interlocuteur.nom' => $record->contactPerson->name ?? 'N/A',
-                            'interlocuteur.tel' => $record->contactPerson->phone ?? 'N/A',
-                        ];
-
-                        foreach ($mapping as $key => $value) {
-                            if ($key === 'demandeur.adresse') {
-                                $templateProcessor->setComplexValue($key, $value);
-                            } else {
-                                $templateProcessor->setValue($key, $value);
-                            }
-                        }
-
-                        $templateProcessor->saveAs("attestation_{$record->id}.docx");
-                    }),
+                GenerateWordAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
+                    BulkAction::make('generate_word_bulk')
+                        ->label('Générer Word (Lot)')
+                        ->icon(Heroicon::DocumentText)
+                        ->color('info')
+                        ->action(fn (Collection $records) => $records->each(
+                            fn ($record) => GenerateWordAction::generate($record)
+                        )),
                     ForceDeleteBulkAction::make(),
                     RestoreBulkAction::make(),
                 ]),
