@@ -13,7 +13,7 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# /public/build - Assets are now committed to allow deployment without Node.js on server
 /public/hot
 /public/storage
 /storage/*.key

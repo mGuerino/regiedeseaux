@@ -1,10 +1,121 @@
+# Régie des Eaux
+
+Application Laravel pour la gestion des demandes et documents de la régie des eaux.
+
+## Prérequis
+
+- PHP 8.2+
+- Composer
+- Node.js 18+ (pour le développement local uniquement)
+- SQLite ou MySQL
+
+## Installation
+
+### En local (développement)
+
+```bash
+# 1. Cloner le repository
+git clone https://github.com/mGuerino/regiedeseaux.git
+cd regiedeseaux
+
+# 2. Installer les dépendances PHP
+composer install
+
+# 3. Installer les dépendances Node.js
+npm install
+
+# 4. Configurer l'environnement
+cp .env.example .env
+php artisan key:generate
+
+# 5. Créer la base de données
+php artisan migrate --seed
+
+# 6. Démarrer le serveur de développement
+php artisan serve
+# Dans un autre terminal:
+npm run dev
+```
+
+### Sur le serveur (production)
+
+**Note:** Les assets frontend (CSS/JS) sont **pré-compilés et inclus dans Git**, donc **Node.js n'est PAS requis** sur le serveur de production.
+
+```bash
+# 1. Cloner le repository
+git clone https://github.com/mGuerino/regiedeseaux.git
+cd regiedeseaux
+
+# 2. Installer les dépendances PHP uniquement
+composer install --no-dev --optimize-autoloader
+
+# 3. Configurer l'environnement
+cp .env.example .env
+php artisan key:generate
+# Éditer .env pour configurer la base de données, mail, etc.
+
+# 4. Migrer la base de données
+php artisan migrate --force
+
+# 5. Optimiser pour la production
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# 6. Configurer les permissions
+chmod -R 775 storage bootstrap/cache
+```
+
+## Déploiement
+
+### Workflow de déploiement
+
+**En local (avant de push):**
+```bash
+# 1. Faire vos modifications de code
+# ...
+
+# 2. Si vous avez modifié CSS/JS, rebuild les assets
+npm run build
+
+# 3. Commit TOUT (code + assets buildés)
+git add .
+git commit -m "Votre message de commit"
+git push
+```
+
+**Sur le serveur:**
+```bash
+# 1. Récupérer les dernières modifications
+cd /chemin/vers/regiedeseaux
+git pull
+
+# 2. Mettre à jour les dépendances si nécessaire
+composer install --no-dev --optimize-autoloader
+
+# 3. Migrer la base de données si nécessaire
+php artisan migrate --force
+
+# 4. Vider les caches
+php artisan cache:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+### Important
+
+- **Les assets compilés (public/build/) sont versionnés dans Git** pour permettre le déploiement sans Node.js sur le serveur
+- **Toujours lancer `npm run build` avant de commiter** si vous avez modifié des fichiers CSS/JS
+- Les assets Vite sont automatiquement versionnés avec des hash pour éviter les problèmes de cache
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
 <a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://packagist.org/packages/laravel/framework" alt="License"></a>
 </p>
 
 ## About Laravel
