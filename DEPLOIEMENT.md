@@ -62,6 +62,48 @@ php artisan route:cache
 php artisan view:cache
 ```
 
+## Première Installation sur un Nouveau Serveur
+
+⚠️ **IMPORTANT:** Ces étapes sont nécessaires lors de la première installation ou après une mise à jour de Livewire/Filament.
+
+```bash
+# 1. Cloner le projet
+git clone https://github.com/mGuerino/regiedeseaux.git
+cd regiedeseaux
+
+# 2. Installer les dépendances PHP
+composer install --no-dev --optimize-autoloader
+
+# 3. Configurer l'environnement
+cp .env.example .env
+nano .env  # Configurer DB, APP_URL, etc.
+php artisan key:generate
+
+# 4. CRITIQUE: Publier les assets Livewire et Filament
+php artisan livewire:publish --assets
+php artisan filament:assets
+
+# 5. CRITIQUE: Créer le lien symbolique pour storage
+php artisan storage:link
+
+# 6. Configurer les permissions
+chmod -R 775 storage bootstrap/cache
+sudo chown -R www-data:www-data storage bootstrap/cache public/storage
+
+# 7. Migrer la base de données
+php artisan migrate --force
+
+# 8. Optimiser pour la production
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# 9. Vérifications finales
+ls -la public/storage           # Doit être un lien symbolique
+ls -lh public/vendor/livewire/  # Doit contenir livewire.js
+curl -I http://votre-url/storage/  # Doit retourner 200 ou 403 (pas 404)
+```
+
 ## Checklist de Déploiement
 
 - [ ] `npm run build` exécuté en local si CSS/JS modifiés
@@ -106,6 +148,56 @@ git push
 ```
 
 ## Dépannage
+
+### Erreur 403 sur les fichiers storage (ex: /storage/documents/fichier.docx)
+
+**Symptôme:** `http://votre-serveur/storage/...` retourne 403 Forbidden
+
+**Cause:** Lien symbolique `public/storage` manquant ou permissions incorrectes
+
+**Solution:**
+```bash
+# 1. Créer le lien symbolique
+php artisan storage:link
+
+# 2. Vérifier que le lien existe
+ls -la public/storage
+# Devrait afficher: public/storage -> ../storage/app/public
+
+# 3. Si le lien existe mais erreur 403, vérifier les permissions
+chmod -R 775 storage
+sudo chown -R www-data:www-data storage public/storage
+
+# 4. Vérifier que le fichier existe
+ls -lh storage/app/public/2025.12/  # Exemple de chemin
+
+# 5. Tester l'accès
+curl -I http://votre-url/storage/test.txt
+```
+
+### Interface Filament cassée (champ password non masqué, pas d'interactions)
+
+**Symptôme:** Le champ mot de passe n'est pas masqué, erreurs JavaScript dans la console
+
+**Cause:** Assets Livewire non publiés
+
+**Solution:**
+```bash
+# 1. Publier les assets Livewire
+php artisan livewire:publish --assets
+
+# 2. Publier les assets Filament
+php artisan filament:assets
+
+# 3. Vider les caches
+php artisan cache:clear
+php artisan view:clear
+
+# 4. Vérifier que les assets sont là
+ls -lh public/vendor/livewire/  # Doit contenir livewire.js
+
+# 5. Vider le cache navigateur (Ctrl+Shift+R)
+```
 
 ### Les assets ne se mettent pas à jour sur le serveur
 
