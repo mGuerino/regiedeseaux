@@ -31,7 +31,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('')
             ->login()
             ->brandLogo(asset('images/logo.png'))
-            ->brandLogoHeight('3.5rem')
+            ->brandLogoHeight('5rem')
             ->colors([
                 'primary' => '#003143',
                 'secondary' => '#ff9900',

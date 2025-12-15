@@ -19,10 +19,11 @@
     "
 >
     @if ($this->getFilters())
-        <div class="mb-4 flex justify-end">
+        <div class="pb-8 flex justify-end">
             <select
+                id="status-filter"
                 wire:model.live="filter"
-                class="rounded-lg border-gray-300 text-sm shadow-sm transition duration-75 focus:border-primary-500 focus:ring-1 focus:ring-inset focus:ring-primary-500 disabled:opacity-70 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-primary-500"
+                class="min-w-[200px] rounded-lg border-gray-300 bg-white px-4 py-2.5 text-base font-medium text-gray-900 shadow-sm transition duration-75 hover:bg-gray-50 focus:border-primary-500 focus:ring-2 focus:ring-inset focus:ring-primary-500 disabled:opacity-70 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 dark:focus:border-primary-500"
             >
                 @foreach ($this->getFilters() as $value => $label)
                     <option value="{{ $value }}">{{ $label }}</option>
