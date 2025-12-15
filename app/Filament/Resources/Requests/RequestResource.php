@@ -32,7 +32,7 @@ class RequestResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return (string) Request::where('request_status', 'En cours')->count();
+        return (string) Request::where('request_status', 1)->count();
     }
 
     public static function getNavigationBadgeColor(): ?string
