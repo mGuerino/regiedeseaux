@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Municipalities;
 
+use App\Enums\NavigationGroup;
 use App\Filament\Resources\Municipalities\Pages\CreateMunicipality;
 use App\Filament\Resources\Municipalities\Pages\EditMunicipality;
 use App\Filament\Resources\Municipalities\Pages\ListMunicipalities;
@@ -15,6 +16,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class MunicipalityResource extends Resource
 {
@@ -28,7 +30,9 @@ class MunicipalityResource extends Resource
 
     protected static ?string $pluralModelLabel = 'communes';
 
-    protected static ?int $navigationSort = 3;
+    protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Referentiels;
+
+    protected static ?int $navigationSort = 4;
 
     public static function form(Schema $schema): Schema
     {

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Parcels;
 
+use App\Enums\NavigationGroup;
 use App\Filament\Resources\Parcels\Pages\CreateParcel;
 use App\Filament\Resources\Parcels\Pages\EditParcel;
 use App\Filament\Resources\Parcels\Pages\ListParcels;
@@ -13,6 +14,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class ParcelResource extends Resource
 {
@@ -26,7 +28,9 @@ class ParcelResource extends Resource
 
     protected static ?string $pluralModelLabel = 'parcelles';
 
-    protected static ?int $navigationSort = 4;
+    protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Referentiels;
+
+    protected static ?int $navigationSort = 5;
 
     public static function form(Schema $schema): Schema
     {

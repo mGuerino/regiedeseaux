@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Contacts;
 
+use App\Enums\NavigationGroup;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
 use App\Filament\Resources\Contacts\Pages\EditContact;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
@@ -13,6 +14,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 class ContactResource extends Resource
 {
@@ -25,6 +27,10 @@ class ContactResource extends Resource
     protected static ?string $modelLabel = 'contact';
 
     protected static ?string $pluralModelLabel = 'contacts';
+
+    protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Referentiels;
+
+    protected static ?int $navigationSort = 3;
 
     public static function form(Schema $schema): Schema
     {

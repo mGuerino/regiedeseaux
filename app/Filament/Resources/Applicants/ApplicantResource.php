@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Applicants;
 
+use App\Enums\NavigationGroup;
 use App\Filament\Resources\Applicants\Pages\CreateApplicant;
 use App\Filament\Resources\Applicants\Pages\EditApplicant;
 use App\Filament\Resources\Applicants\Pages\ListApplicants;
@@ -15,6 +16,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class ApplicantResource extends Resource
 {
@@ -27,6 +29,8 @@ class ApplicantResource extends Resource
     protected static ?string $modelLabel = 'demandeur';
 
     protected static ?string $pluralModelLabel = 'demandeurs';
+
+    protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Referentiels;
 
     protected static ?int $navigationSort = 2;
 

@@ -21,5 +21,55 @@
                 "SITE_PATH": "/Users/michaelguerino/code/regiedeseaux"
             }
         }
+    },
+    "instructions": {
+        "framework": {
+            "name": "Laravel 12 + Filament 4",
+            "language": "Français"
+        },
+        "rules": {
+            "filament_v4_navigation": {
+                "icons_groups_items": "RÈGLE CRITIQUE: Ne JAMAIS implémenter HasIcon sur les enums NavigationGroup si les resources du groupe ont déjà des navigationIcon. Filament v4 interdit d'avoir des icônes à la fois sur le groupe ET sur ses items. Choix: soit groupe avec icône (items sans), soit items avec icônes (groupe sans). TOUJOURS préférer les icônes sur les items individuels.",
+                "enum_usage": "Pour NavigationGroup enum: implémenter UNIQUEMENT HasLabel, PAS HasIcon si les resources ont des icônes.",
+                "panel_config": "Utiliser NavigationGroup::make($enum->getLabel()) et NON passer l'enum directement au constructeur.",
+                "badge_colors": "Couleurs de badge autorisées: danger, gray, info, primary, success, warning"
+            },
+            "filament_v4_enums": {
+                "width": "Utiliser Filament\\Support\\Enums\\Width pour les largeurs (ExtraSmall, Small, Medium, Large, ExtraLarge, TwoExtraLarge, ThreeExtraLarge, FourExtraLarge, FiveExtraLarge, SixExtraLarge, SevenExtraLarge, Full, MinContent, MaxContent, FitContent, Prose, Screen*)",
+                "heroicons": "Utiliser Filament\\Support\\Icons\\Heroicon. Format: Heroicon::Star (solid), Heroicon::OutlinedStar (outline). Filament choisit automatiquement la taille (16px, 20px, 24px).",
+                "alignment": "Utiliser Filament\\Support\\Enums\\Alignment (Start, Center, End)"
+            },
+            "filament_v4_navigation_groups": {
+                "with_enum": "Créer enum qui implémente HasLabel pour labels/ordre centralisés. Optionnel: HasIcon SI items n'ont PAS d'icônes.",
+                "collapsible": "Activer avec ->collapsibleNavigationGroups(true) dans panel config.",
+                "collapsed_by_default": "Utiliser ->collapsed() sur NavigationGroup pour fermer par défaut."
+            }
+        },
+        "conventions": {
+            "language": "Tous les labels, messages, et textes utilisateurs DOIVENT être en français.",
+            "navigation": "Préférer les icônes sur les items de menu plutôt que sur les groupes pour plus de clarté.",
+            "models": "Les demandes (Request) sont le cœur de l'application - toujours les mettre en évidence.",
+            "status_field": "Le champ request_status contient des valeurs comme 'En cours', 'Terminé', etc."
+        },
+        "project_structure": {
+            "navigation_groups": {
+                "enum_location": "app/Enums/NavigationGroup.php",
+                "groups": [
+                    {
+                        "name": "Referentiels",
+                        "label": "Référentiels",
+                        "resources": ["Applicants", "Contacts", "Municipalities", "Parcels", "Roads"],
+                        "collapsed": false
+                    },
+                    {
+                        "name": "Administration",
+                        "label": "Administration",
+                        "resources": ["Agents", "Users"],
+                        "collapsed": true
+                    }
+                ]
+            },
+            "main_resource": "Request (Demandes) - hors groupe, toujours en première position avec badge du nombre de demandes 'En cours'"
+        }
     }
 }

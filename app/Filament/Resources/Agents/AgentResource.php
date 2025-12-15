@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Agents;
 
+use App\Enums\NavigationGroup;
 use App\Filament\Resources\Agents\Pages\CreateAgent;
 use App\Filament\Resources\Agents\Pages\EditAgent;
 use App\Filament\Resources\Agents\Pages\ListAgents;
@@ -15,6 +16,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class AgentResource extends Resource
 {
@@ -28,7 +30,9 @@ class AgentResource extends Resource
 
     protected static ?string $pluralModelLabel = 'agents';
 
-    protected static ?int $navigationSort = 6;
+    protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Administration;
+
+    protected static ?int $navigationSort = 7;
 
     public static function form(Schema $schema): Schema
     {
