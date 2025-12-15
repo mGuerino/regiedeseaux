@@ -57,7 +57,12 @@ class GenerateWordAction
             'statut.reseauPublic' => $record->water_status ? 'Raccordable' : 'Non raccordable',
             'signataire.nom' => $record->signatory->name ?? '',
             'signataire.fonction' => $record->signatory->title ?? 'N',
-            'observations' => $record->observations ?? ''
+            'observations' => $record->observations ?? '',
+            'utilisateur.nom' => $record->followedByUser 
+                ? ($record->followedByUser->first_name 
+                    ? "{$record->followedByUser->first_name} {$record->followedByUser->name}"
+                    : $record->followedByUser->name)
+                : 'N/A',
 
         ];
 

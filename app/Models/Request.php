@@ -16,6 +16,7 @@ class Request extends Model
     protected $fillable = [
         'applicant_id',
         'contact_id',
+        'followed_by_user_id',
         'reference',
         'request_date',
         'response_date',
@@ -67,6 +68,11 @@ class Request extends Model
     public function contactPerson(): BelongsTo
     {
         return $this->belongsTo(Agent::class, 'contact_person_id');
+    }
+
+    public function followedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'followed_by_user_id');
     }
 
     public function municipality(): BelongsTo

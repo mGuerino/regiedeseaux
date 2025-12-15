@@ -118,6 +118,18 @@ class RequestsTable
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                TextColumn::make('followedByUser.name')
+                    ->label('Suivi par')
+                    ->searchable(['name', 'first_name'])
+                    ->formatStateUsing(fn ($record) => $record->followedByUser 
+                        ? ($record->followedByUser->first_name 
+                            ? "{$record->followedByUser->first_name} {$record->followedByUser->name}"
+                            : $record->followedByUser->name)
+                        : '-'
+                    )
+                    ->sortable()
+                    ->toggleable(),
+
                 TextColumn::make('created_by')
                     ->label('Créé par')
                     ->searchable()

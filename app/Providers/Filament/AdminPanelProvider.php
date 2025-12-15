@@ -3,7 +3,9 @@
 namespace App\Providers\Filament;
 
 use App\Enums\NavigationGroup;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Dashboard;
+use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -52,6 +54,10 @@ class AdminPanelProvider extends PanelProvider
                 FilamentNavigationGroup::make(NavigationGroup::Referentiels->getLabel()),
                 FilamentNavigationGroup::make(NavigationGroup::Administration->getLabel())
                     ->collapsed(),
+            ])
+            ->profile(EditProfile::class)
+            ->userMenuItems([
+                'profile' => fn (Action $action) => $action->label('Mon profil'),
             ])
             ->middleware([
                 EncryptCookies::class,

@@ -76,6 +76,7 @@ class RequestResource extends Resource
                 'signatory:id,name',  // Pour signatory.name (toggleable hidden)
                 'certifier:id,name',  // Pour certifier.name (toggleable hidden)
                 'contactPerson:id,name',  // Pour contactPerson.name (toggleable hidden)
+                'followedByUser:id,name,first_name',  // Pour followedByUser.name
             ]);
     }
 

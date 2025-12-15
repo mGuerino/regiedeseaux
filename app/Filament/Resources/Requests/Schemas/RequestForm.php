@@ -7,6 +7,7 @@ use App\Models\Applicant;
 use App\Models\Contact;
 use App\Models\Parcel;
 use App\Models\Road;
+use App\Models\User;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -16,6 +17,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 
 class RequestForm
 {
@@ -140,6 +142,23 @@ class RequestForm
                                     ->label('Date de la réponse')
                                     ->native(false)
                                     ->displayFormat('d/m/Y')
+                                    ->columnSpan(1),
+
+                                Select::make('followed_by_user_id')
+                                    ->label('Demande suivie par')
+                                    ->options(fn() => User::query()
+                                        ->orderBy('name')
+                                        ->get()
+                                        ->mapWithKeys(fn($user) => [
+                                            $user->id => $user->first_name 
+                                                ? "{$user->first_name} {$user->name}" 
+                                                : $user->name
+                                        ])
+                                    )
+                                    ->default(Auth::id())
+                                    ->required()
+                                    ->searchable()
+                                    ->native(false)
                                     ->columnSpan(1),
                             ]),
                     ]),
