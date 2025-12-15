@@ -30,6 +30,8 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('')
             ->login()
+            ->brandLogo(asset('images/logo.png'))
+            ->brandLogoHeight('2.5rem')
             ->colors([
                 'primary' => '#003143',
                 'secondary' => '#ff9900',
@@ -41,8 +43,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
-                AccountWidget::class,
-                FilamentInfoWidget::class,
+                /* AccountWidget::class, */
+                /* FilamentInfoWidget::class, */
             ])
             ->collapsibleNavigationGroups(true)
             ->sidebarCollapsibleOnDesktop()
