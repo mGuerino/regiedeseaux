@@ -3,6 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Mail\DocumentEmail;
+use App\Models\Agent;
+use App\Models\Applicant;
 use App\Models\Contact;
 use App\Models\Document;
 use App\Models\EmailLog;
@@ -51,6 +53,76 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
         $this->form->fill();
     }
 
+    protected function getAllRecipientsOptions(): array
+    {
+        $options = [];
+
+        // Applicants avec email
+        $applicants = Applicant::whereNotNull('email')
+            ->where('email', '!=', '')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $applicantOptions = [];
+        foreach ($applicants as $applicant) {
+            $applicantOptions[$applicant->id.'_applicant'] = sprintf(
+                '%s %s (%s)',
+                $applicant->first_name,
+                $applicant->last_name,
+                $applicant->email
+            );
+        }
+
+        // Contacts avec email
+        $contacts = Contact::whereNotNull('email')
+            ->where('email', '!=', '')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        $contactOptions = [];
+        foreach ($contacts as $contact) {
+            $contactOptions[$contact->id.'_contact'] = sprintf(
+                '%s %s (%s)',
+                $contact->first_name,
+                $contact->last_name,
+                $contact->email
+            );
+        }
+
+        // Agents avec email (tous, pas de filtre sur is_active)
+        $agents = Agent::whereNotNull('email')
+            ->where('email', '!=', '')
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get();
+
+        $agentOptions = [];
+        foreach ($agents as $agent) {
+            $agentOptions[$agent->id.'_agent'] = sprintf(
+                '%s (%s)',
+                $agent->name,
+                $agent->email
+            );
+        }
+
+        // Grouper par type
+        if (! empty($applicantOptions)) {
+            $options['Demandeurs'] = $applicantOptions;
+        }
+
+        if (! empty($contactOptions)) {
+            $options['Contacts'] = $contactOptions;
+        }
+
+        if (! empty($agentOptions)) {
+            $options['Agents'] = $agentOptions;
+        }
+
+        return $options;
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema
@@ -58,21 +130,13 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
                 Section::make('Destinataires')
                     ->description('Sélectionnez les contacts ou ajoutez des emails manuellement')
                     ->schema([
-                        Select::make('contact_ids')
-                            ->label('Contacts')
+                        Select::make('recipient_keys')
+                            ->label('Destinataires')
                             ->multiple()
                             ->searchable()
                             ->preload()
-                            ->options(function () {
-                                return Contact::whereNotNull('email')
-                                    ->where('email', '!=', '')
-                                    ->orderBy('last_name')
-                                    ->get()
-                                    ->mapWithKeys(fn ($contact) => [
-                                        $contact->id => "{$contact->first_name} {$contact->last_name} ({$contact->email})",
-                                    ]);
-                            })
-                            ->helperText('Sélectionnez les contacts dans votre base de données'),
+                            ->options(fn () => $this->getAllRecipientsOptions())
+                            ->helperText('Sélectionnez les personnes dans votre base de données (demandeurs, contacts, agents)'),
 
                         TagsInput::make('manual_emails')
                             ->label('Emails supplémentaires')
@@ -167,21 +231,36 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
 
     protected function getRecipientsList(): array
     {
-        $contactEmails = [];
-        $manualEmails = [];
+        $emails = [];
 
-        if (isset($this->data['contact_ids']) && is_array($this->data['contact_ids'])) {
-            $contactEmails = Contact::whereIn('id', $this->data['contact_ids'])
-                ->pluck('email')
-                ->filter()
-                ->toArray();
+        // Récupérer les emails depuis les clés de destinataires (format: id_type)
+        if (isset($this->data['recipient_keys']) && is_array($this->data['recipient_keys'])) {
+            foreach ($this->data['recipient_keys'] as $key) {
+                // Parser la clé (format: "123_applicant", "456_contact", "789_agent")
+                $parts = explode('_', $key);
+                if (count($parts) === 2) {
+                    [$id, $type] = $parts;
+
+                    $email = match ($type) {
+                        'applicant' => Applicant::find($id)?->email,
+                        'contact' => Contact::find($id)?->email,
+                        'agent' => Agent::find($id)?->email,
+                        default => null,
+                    };
+
+                    if ($email) {
+                        $emails[] = $email;
+                    }
+                }
+            }
         }
 
+        // Ajouter les emails manuels
         if (isset($this->data['manual_emails']) && is_array($this->data['manual_emails'])) {
-            $manualEmails = $this->data['manual_emails'];
+            $emails = array_merge($emails, $this->data['manual_emails']);
         }
 
-        return array_unique(array_merge($contactEmails, $manualEmails));
+        return array_unique(array_filter($emails));
     }
 
     protected function getDocumentsList(): Collection
@@ -264,6 +343,7 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
             'subject' => $state['subject'],
             'message' => $state['message'],
             'recipients' => $recipients,
+            'recipient_keys' => $state['recipient_keys'] ?? [],
             'document_ids' => $state['document_ids'],
             'sent_by' => Auth::user()->name,
             'recipients_count' => count($recipients),

@@ -14,10 +14,29 @@ Cette fonctionnalité permet d'envoyer des emails avec des documents attachés d
 
 ### 1. Sélection des destinataires
 
-Deux options disponibles:
+**Mise à jour (16 décembre 2025)**: La sélection des destinataires a été améliorée pour inclure toutes les personnes présentes dans la régie.
 
-- **Contacts depuis la base de données**: Sélection multiple des contacts existants avec leur email
+Trois types de destinataires disponibles (avec groupement par catégorie):
+
+- **Demandeurs (Applicants)**: Tous les demandeurs ayant une adresse email dans la base de données
+- **Contacts**: Tous les contacts ayant une adresse email
+- **Agents**: Tous les agents (non supprimés) ayant une adresse email
+
+Les destinataires sont affichés sous forme de groupes dans le sélecteur:
+```
+Demandeurs
+  - Jean Dupont (jean.dupont@example.com)
+  - Marie Martin (marie.martin@example.com)
+Contacts
+  - Pierre Durand (pierre@example.com)
+Agents
+  - Agent Principal (agent@regie.fr)
+```
+
+Options supplémentaires:
 - **Emails manuels**: Ajout d'adresses email supplémentaires (validation automatique)
+- **Recherche**: Le champ est recherchable pour trouver rapidement une personne
+- **Sélection multiple**: Possibilité de sélectionner plusieurs destinataires à la fois
 
 ### 2. Sélection des documents
 
@@ -52,7 +71,8 @@ Bouton "Prévisualiser" pour vérifier avant l'envoi:
 Tous les envois sont enregistrés dans la table `email_logs` avec:
 
 - Sujet et message
-- Liste des destinataires (JSON)
+- Liste des destinataires (emails) - JSON
+- Clés des destinataires (type + ID) - JSON - **Nouveau (16/12/2025)**
 - IDs des documents envoyés (JSON)
 - Nom de l'expéditeur
 - Nombre de destinataires

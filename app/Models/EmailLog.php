@@ -10,6 +10,7 @@ class EmailLog extends Model
         'subject',
         'message',
         'recipients',
+        'recipient_keys',
         'document_ids',
         'sent_by',
         'recipients_count',
@@ -21,6 +22,7 @@ class EmailLog extends Model
     {
         return [
             'recipients' => 'array',
+            'recipient_keys' => 'array',
             'document_ids' => 'array',
             'success' => 'boolean',
         ];
