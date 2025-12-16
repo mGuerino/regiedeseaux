@@ -149,27 +149,86 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
                     ->columns(1),
 
                 Section::make('Documents à joindre')
-                    ->description('Sélectionnez jusqu\'à 4 documents à envoyer')
+                    ->description('Sélectionnez d\'abord une demande, puis choisissez les documents à envoyer')
                     ->schema([
+                        Select::make('request_id')
+                            ->label('Demande')
+                            ->required()
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->getSearchResultsUsing(function (string $search): array {
+                                return \App\Models\Request::query()
+                                    ->where(function ($query) use ($search) {
+                                        $query->where('reference', 'like', "%{$search}%")
+                                            ->orWhereHas('applicant', function ($q) use ($search) {
+                                                $q->where('last_name', 'like', "%{$search}%")
+                                                    ->orWhere('first_name', 'like', "%{$search}%");
+                                            });
+                                    })
+                                    ->whereHas('documents')
+                                    ->with('applicant')
+                                    ->orderBy('request_date', 'desc')
+                                    ->limit(50)
+                                    ->get()
+                                    ->mapWithKeys(function ($request) {
+                                        $applicantName = $request->applicant
+                                            ? "{$request->applicant->first_name} {$request->applicant->last_name}"
+                                            : 'N/A';
+                                        $docCount = $request->documents()->count();
+
+                                        return [
+                                            $request->id => "{$request->reference} - {$applicantName} ({$docCount} doc".(($docCount > 1) ? 's' : '').')',
+                                        ];
+                                    })
+                                    ->toArray();
+                            })
+                            ->getOptionLabelUsing(function ($value): string {
+                                $request = \App\Models\Request::with('applicant')->find($value);
+                                if (! $request) {
+                                    return 'Demande introuvable';
+                                }
+
+                                $applicantName = $request->applicant
+                                    ? "{$request->applicant->first_name} {$request->applicant->last_name}"
+                                    : 'N/A';
+                                $docCount = $request->documents()->count();
+
+                                return "{$request->reference} - {$applicantName} ({$docCount} doc".(($docCount > 1) ? 's' : '').')';
+                            })
+                            ->helperText('Recherchez par référence ou nom du demandeur'),
+
                         Select::make('document_ids')
                             ->label('Documents')
                             ->multiple()
                             ->required()
-                            ->searchable()
-                            ->preload()
-                            ->maxItems(4)
-                            ->options(function () {
-                                return Document::query()
-                                    ->join('requests', 'documents.request_id', '=', 'requests.id')
-                                    ->select('documents.id', 'documents.document_name', 'documents.document_type', 'requests.reference')
-                                    ->orderBy('documents.created_at', 'desc')
-                                    ->limit(500)
+                            ->visible(fn ($get) => $get('request_id') !== null)
+                            ->options(function ($get) {
+                                $requestId = $get('request_id');
+                                if (! $requestId) {
+                                    return [];
+                                }
+
+                                return Document::where('request_id', $requestId)
+                                    ->orderBy('created_at', 'desc')
                                     ->get()
-                                    ->mapWithKeys(fn ($doc) => [
-                                        $doc->id => "{$doc->document_name} (Réf: {$doc->reference}) [{$doc->document_type}]",
-                                    ]);
+                                    ->mapWithKeys(function ($doc) {
+                                        $icon = match ($doc->getFileExtension()) {
+                                            'pdf' => '📄',
+                                            'png', 'jpg', 'jpeg', 'bmp', 'gif' => '🖼️',
+                                            'docx', 'doc' => '📝',
+                                            default => '📎',
+                                        };
+                                        $size = $doc->getFileSizeFormatted();
+                                        $type = ucfirst($doc->document_type);
+
+                                        return [
+                                            $doc->id => "{$icon} {$doc->document_name} ({$size} • {$type})",
+                                        ];
+                                    })
+                                    ->toArray();
                             })
-                            ->helperText('Maximum 4 documents par email'),
+                            ->helperText('Sélectionnez les documents à joindre (taille max totale : 10 Mo)'),
                     ])
                     ->columns(1),
 
@@ -210,7 +269,7 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
                 ]))
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Fermer')
-                ->modalWidth('2xl'),
+                ->modalWidth('4xl'),
 
             Action::make('send')
                 ->label('Envoyer')
@@ -303,11 +362,14 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
             return;
         }
 
-        // Vérification que tous les fichiers existent
+        // Vérification que tous les fichiers existent et calcul de la taille totale
         $missingFiles = [];
+        $totalSize = 0;
         foreach ($documents as $document) {
             if (! Storage::exists($document->file_name)) {
                 $missingFiles[] = $document->document_name;
+            } else {
+                $totalSize += $document->getFileSizeBytes();
             }
         }
 
@@ -315,6 +377,19 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
             Notification::make()
                 ->title('Fichiers manquants')
                 ->body('Les documents suivants sont introuvables : '.implode(', ', $missingFiles))
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        // Vérification de la taille totale (10 MB max)
+        $maxSize = 10 * 1024 * 1024; // 10 MB en octets
+        if ($totalSize > $maxSize) {
+            $totalSizeMB = round($totalSize / (1024 * 1024), 2);
+            Notification::make()
+                ->title('Taille de fichiers trop importante')
+                ->body("La taille totale des documents ({$totalSizeMB} Mo) dépasse la limite autorisée de 10 Mo.")
                 ->danger()
                 ->send();
 

@@ -18,14 +18,33 @@
             
             @if($documents->count() > 0)
                 <div style="background-color: #f9fafb; border-left: 4px solid #3b82f6; padding: 15px; margin-top: 25px; border-radius: 4px;">
-                    <h2 style="margin: 0 0 10px 0; font-size: 16px; color: #1f2937;">Documents joints :</h2>
-                    <ul style="margin: 0; padding-left: 20px;">
+                    <h2 style="margin: 0 0 15px 0; font-size: 16px; color: #1f2937;">Documents joints :</h2>
+                    <ul style="margin: 0; padding: 0; list-style: none;">
                         @foreach($documents as $document)
-                            <li style="margin-bottom: 5px; color: #4b5563;">
-                                <strong>{{ $document->document_name }}</strong>
-                                @if($document->document_type)
-                                    <span style="font-size: 12px; color: #6b7280;">({{ ucfirst($document->document_type) }})</span>
-                                @endif
+                            <li style="margin-bottom: 12px; padding: 8px; background-color: white; border-radius: 4px; display: flex; align-items: start;">
+                                <span style="font-size: 20px; margin-right: 10px; flex-shrink: 0;">
+                                    @php
+                                        $icon = match($document->getFileExtension()) {
+                                            'pdf' => '📄',
+                                            'png', 'jpg', 'jpeg', 'bmp', 'gif' => '🖼️',
+                                            'docx', 'doc' => '📝',
+                                            'xlsx', 'xls' => '📊',
+                                            'zip', 'rar' => '📦',
+                                            default => '📎',
+                                        };
+                                    @endphp
+                                    {{ $icon }}
+                                </span>
+                                <div style="flex: 1;">
+                                    <strong style="color: #1f2937; display: block; margin-bottom: 4px;">{{ $document->document_name }}</strong>
+                                    <span style="font-size: 12px; color: #6b7280;">
+                                        {{ $document->getFileSizeFormatted() }} • 
+                                        {{ ucfirst($document->document_type) }}
+                                        @if($document->document_type === 'generated')
+                                            <span style="display: inline-block; background-color: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 3px; margin-left: 4px;">Généré</span>
+                                        @endif
+                                    </span>
+                                </div>
                             </li>
                         @endforeach
                     </ul>
