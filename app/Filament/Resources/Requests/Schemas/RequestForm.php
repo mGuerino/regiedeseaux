@@ -25,11 +25,31 @@ class RequestForm
     {
         return Select::make($field)
             ->label($label)
-            ->options(
-                Agent::where('type', $type)
+            ->options(function (callable $get) use ($type, $field) {
+                // Récupérer l'ID de l'agent actuellement assigné
+                $currentAgentId = $get($field);
+                
+                // Agents actifs du type demandé
+                $agents = Agent::where('type', $type)
                     ->where('is_active', true)
-                    ->pluck('name', 'id')
-            )
+                    ->get();
+                
+                // Si un agent est assigné mais inactif, l'ajouter aux options
+                if ($currentAgentId) {
+                    $currentAgent = Agent::find($currentAgentId);
+                    if ($currentAgent && !$currentAgent->is_active) {
+                        $agents->push($currentAgent);
+                    }
+                }
+                
+                return $agents->mapWithKeys(function ($agent) {
+                    $label = $agent->name;
+                    if (!$agent->is_active) {
+                        $label .= ' (Inactif)';
+                    }
+                    return [$agent->id => $label];
+                });
+            })
             ->default(function () use ($type) {
                 return Agent::where('type', $type)
                     ->where('is_default', true)
