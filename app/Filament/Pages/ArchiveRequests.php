@@ -97,9 +97,8 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
 
                         Select::make('municipality_code')
                             ->label('Commune (optionnel)')
-                            ->relationship('municipality', 'name')
+                            ->options(fn () => \App\Models\Municipality::pluck('name', 'code')->toArray())
                             ->searchable()
-                            ->preload()
                             ->native(false)
                             ->helperText('Laisser vide pour archiver toutes les communes')
                             ->columnSpanFull(),
@@ -116,7 +115,8 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
                     ])
                     ->visible(fn () => $this->previewCount !== null)
                     ->columns(1),
-            ]);
+            ])
+            ->statePath('data');
     }
 
     protected function getPreviewContent(): string
