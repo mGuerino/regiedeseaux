@@ -41,7 +41,10 @@ class GenerateWordAction
         })->implode(', ') ?: 'Aucune parcelle';
 
         // Liste des rues avec sauts de ligne
-        $roadsList = $record->roads->pluck('pivot.road_name')->implode("\n") ?: 'Aucune rue';
+        // Utilise pivot.road_name si rempli, sinon fallback sur road.name
+        $roadsList = $record->roads->map(function ($road) {
+            return $road->pivot->road_name ?: $road->name;
+        })->filter()->implode("\n") ?: 'Aucune rue';
 
         // Mapping des valeurs pour Word
         $mapping = [
