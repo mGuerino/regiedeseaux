@@ -29,7 +29,7 @@ class ArchiveRequests extends Page implements HasForms
 
     protected static ?string $title = 'Archivage des demandes';
 
-    protected static NavigationGroup $navigationGroup = NavigationGroup::Administration;
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Administration;
 
     protected static ?int $navigationSort = 99;
 
