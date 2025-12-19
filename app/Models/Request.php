@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\ExcludeArchivedScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Request extends Model
 {
     use HasFactory, SoftDeletes;
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new ExcludeArchivedScope);
+    }
 
     protected $fillable = [
         'applicant_id',
@@ -110,5 +119,22 @@ class Request extends Model
             ->using(RequestRoad::class)
             ->withPivot('road_name')
             ->withTimestamps();
+    }
+
+    /**
+     * Inclure les demandes archivées dans la requête.
+     */
+    public function scopeWithArchived($query)
+    {
+        return $query->withoutGlobalScope(ExcludeArchivedScope::class);
+    }
+
+    /**
+     * Récupérer uniquement les demandes archivées.
+     */
+    public function scopeOnlyArchived($query)
+    {
+        return $query->withoutGlobalScope(ExcludeArchivedScope::class)
+            ->where('is_archived', true);
     }
 }

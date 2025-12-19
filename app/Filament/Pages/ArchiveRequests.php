@@ -194,7 +194,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
 
     protected function buildQuery(array $data): \Illuminate\Database\Eloquent\Builder
     {
-        $query = Request::query()
+        $query = Request::withArchived()
             ->where('is_archived', false); // Seulement les demandes non archivées
 
         // Filtre par date

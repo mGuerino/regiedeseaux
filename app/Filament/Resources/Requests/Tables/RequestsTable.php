@@ -203,9 +203,9 @@ class RequestsTable
                     ->trueLabel('Afficher uniquement archivées')
                     ->falseLabel('Afficher uniquement non archivées')
                     ->queries(
-                        true: fn (Builder $query) => $query->where('is_archived', true),
-                        false: fn (Builder $query) => $query->where('is_archived', false),
-                        blank: fn (Builder $query) => $query,
+                        true: fn (Builder $query) => $query->onlyArchived(),
+                        false: fn (Builder $query) => $query, // Par défaut, le scope exclut déjà les archivées
+                        blank: fn (Builder $query) => $query->withArchived(),
                     )
                     ->default(false),
             ])
