@@ -7,19 +7,19 @@ use App\Models\Request;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Radio;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Concerns\InteractsWithForms;
-use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Concerns\InteractsWithSchemas;
+use Filament\Schemas\Contracts\HasSchemas;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 
-class ArchiveRequests extends Page implements HasForms
+class ArchiveRequests extends Page implements HasSchemas
 {
-    use InteractsWithForms;
+    use InteractsWithSchemas;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
@@ -51,9 +51,9 @@ class ArchiveRequests extends Page implements HasForms
         ]);
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
+        return $schema
             ->schema([
                 Section::make('Critères d\'archivage')
                     ->description('Sélectionnez les critères pour identifier les demandes à archiver')
@@ -113,8 +113,7 @@ class ArchiveRequests extends Page implements HasForms
                     ])
                     ->visible(fn () => $this->previewCount !== null)
                     ->columns(1),
-            ])
-            ->statePath('data');
+            ]);
     }
 
     protected function getPreviewContent(): string
