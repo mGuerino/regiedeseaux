@@ -40,6 +40,9 @@ class GenerateWordAction
             return $parcel->ident;
         })->implode(', ') ?: 'Aucune parcelle';
 
+        // Liste des rues avec sauts de ligne
+        $roadsList = $record->roads->pluck('pivot.road_name')->implode("\n") ?: 'Aucune rue';
+
         // Mapping des valeurs pour Word
         $mapping = [
             'demandeur.nom' => $record->applicant->last_name ?? 'N/A',
@@ -49,7 +52,7 @@ class GenerateWordAction
             'reference' => $record->reference ?? 'N/A',
             'commune.nom' => $record->municipality->name ?? 'N/A',
             'demande.date' => $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A',
-            'demande.adresse' => $record->request_address ?? 'N/A',
+            'demande.adresse' => $roadsList,
             'parcelles' => $parcelsList,
             'interlocuteur.nom' => $record->contactPerson->name ?? 'N/A',
             'interlocuteur.tel' => $record->contactPerson->phone ?? 'N/A',
