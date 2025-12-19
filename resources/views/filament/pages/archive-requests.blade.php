@@ -1,7 +1,7 @@
 <x-filament-panels::page>
-    <x-filament-panels::form wire:submit="save">
-        {{ $this->form }}
-    </x-filament-panels::form>
+    {{ $this->form }}
+
+    <x-filament-actions::modals />
 
     <x-filament::section>
         <x-slot name="heading">

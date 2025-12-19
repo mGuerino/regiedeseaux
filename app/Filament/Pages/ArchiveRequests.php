@@ -5,6 +5,8 @@ namespace App\Filament\Pages;
 use App\Enums\NavigationGroup;
 use App\Models\Request;
 use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
@@ -17,8 +19,9 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 
-class ArchiveRequests extends Page implements HasSchemas
+class ArchiveRequests extends Page implements HasActions, HasSchemas
 {
+    use InteractsWithActions;
     use InteractsWithSchemas;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
