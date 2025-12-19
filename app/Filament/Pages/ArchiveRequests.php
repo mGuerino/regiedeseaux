@@ -21,9 +21,7 @@ class ArchiveRequests extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
-
-    protected static string $view = 'filament.pages.archive-requests';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
     protected static ?string $navigationLabel = 'Archivage';
 
@@ -38,6 +36,11 @@ class ArchiveRequests extends Page implements HasForms
     public ?int $previewCount = null;
 
     public ?array $previewReferences = null;
+
+    public function getView(): string
+    {
+        return 'filament.pages.archive-requests';
+    }
 
     public function mount(): void
     {
