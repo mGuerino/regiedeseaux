@@ -18,6 +18,8 @@ class Request extends Model
         'contact_id',
         'followed_by_user_id',
         'is_archived',
+        'archived_at',
+        'archived_by',
         'reference',
         'request_date',
         'response_date',
@@ -44,6 +46,7 @@ class Request extends Model
             'created_date' => 'date',
             'updated_date' => 'date',
             'is_archived' => 'boolean',
+            'archived_at' => 'datetime',
         ];
     }
 

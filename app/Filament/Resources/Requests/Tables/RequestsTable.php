@@ -22,6 +22,7 @@ use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 
 class RequestsTable
 {
@@ -223,7 +224,13 @@ class RequestsTable
                         : 'Cette demande sera masquée de la liste principale. Vous pourrez la retrouver en activant le filtre "Archivées".'
                     )
                     ->action(function ($record) {
-                        $record->update(['is_archived' => !$record->is_archived]);
+                        $isArchiving = !$record->is_archived;
+                        
+                        $record->update([
+                            'is_archived' => $isArchiving,
+                            'archived_at' => $isArchiving ? now() : null,
+                            'archived_by' => $isArchiving ? Auth::user()->name : null,
+                        ]);
                         
                         Notification::make()
                             ->title($record->is_archived ? 'Demande archivée' : 'Demande désarchivée')
