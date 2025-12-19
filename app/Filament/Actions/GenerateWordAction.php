@@ -28,7 +28,7 @@ class GenerateWordAction
 
         // Adresse avec sauts de ligne
         $addressTextRun = new TextRun;
-        $addressTextRun->addText($record->applicant->adress ?? '');
+        $addressTextRun->addText($record->applicant->address ?? '');
         $addressTextRun->addTextBreak();
         if ($record->applicant->address2) {
             $addressTextRun->addText($record->applicant->address2);
@@ -38,7 +38,7 @@ class GenerateWordAction
 
         $parcelsList = $record->parcels->map(function ($parcel) {
             return $parcel->ident;
-        })->implode(', ');
+        })->implode(', ') ?: 'Aucune parcelle';
 
         // Mapping des valeurs pour Word
         $mapping = [
@@ -50,13 +50,15 @@ class GenerateWordAction
             'commune.nom' => $record->municipality->name ?? 'N/A',
             'demande.date' => $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A',
             'demande.adresse' => $record->request_address ?? 'N/A',
-            'parcelles' => $parcelsList ?? 'aucune parcelles',
+            'parcelles' => $parcelsList,
             'interlocuteur.nom' => $record->contactPerson->name ?? 'N/A',
             'interlocuteur.tel' => $record->contactPerson->phone ?? 'N/A',
             'statut.adduction' => $record->wastewater_status ? 'Raccordable' : 'Non raccordable',
             'statut.reseauPublic' => $record->water_status ? 'Raccordable' : 'Non raccordable',
             'signataire.nom' => $record->signatory->name ?? '',
-            'signataire.fonction' => $record->signatory->title ?? 'N',
+            'signataire.fonction' => $record->signatory->title ?? '',
+            'certifier.nom' => $record->certifier->name ?? '',
+            'certifier.fonction' => $record->certifier->title ?? '',
             'observations' => $record->observations ?? '',
             'utilisateur.nom' => $record->followedByUser 
                 ? ($record->followedByUser->first_name 
