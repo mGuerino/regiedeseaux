@@ -83,11 +83,9 @@ class EditRequest extends EditRecord
 
         // Synchroniser les parcelles avec la demande
         if (! empty($this->parcels)) {
-            $parcelsToSync = [];
-            foreach ($this->parcels as $parcel) {
-                $parcelsToSync[] = $parcel['parcel_id'];
-            }
-            $this->record->parcels()->sync($parcelsToSync);
+            // $this->parcels contient déjà directement les identifiants (strings)
+            // Ex: ["13001000AB0001", "13001000AB0002"]
+            $this->record->parcels()->sync($this->parcels);
         } else {
             // Si aucune parcelle n'est fournie, détacher toutes les parcelles
             $this->record->parcels()->detach();
