@@ -23,7 +23,7 @@ class SendEmailFromRequestAction
             ->label('Envoyer email')
             ->icon(Heroicon::OutlinedPaperAirplane)
             ->color('success')
-            ->fillForm(function ($record) {
+            ->mountUsing(function ($form, $record) {
                 // Pré-remplir tous les champs AVANT l'ouverture du modal
                 $emails = [];
                 
@@ -38,14 +38,14 @@ class SendEmailFromRequestAction
                     ? "{$record->applicant->first_name} {$record->applicant->last_name}"
                     : 'N/A';
                 
-                return [
+                $form->fill([
                     'document_ids' => $record->documents->pluck('id')->toArray(),
                     'recipient_emails' => $emails,
                     'subject' => "Attestation {$record->reference}",
                     'message' => "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n" . Auth::user()->name,
                     'mark_as_completed' => false,
                     'set_response_date' => false,
-                ];
+                ]);
             })
             ->form(fn ($record) => [
                 Select::make('document_ids')
