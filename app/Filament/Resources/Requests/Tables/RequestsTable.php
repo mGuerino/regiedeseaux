@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Requests\Tables;
 
 use App\Filament\Actions\GenerateWordAction;
+use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -10,13 +11,16 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class RequestsTable
@@ -191,11 +195,41 @@ class RequestsTable
                     ->native(false),
 
                 TrashedFilter::make(),
+
+                TernaryFilter::make('is_archived')
+                    ->label('Archivées')
+                    ->placeholder('Masquer archivées')
+                    ->trueLabel('Afficher uniquement archivées')
+                    ->falseLabel('Afficher uniquement non archivées')
+                    ->queries(
+                        true: fn (Builder $query) => $query->where('is_archived', true),
+                        false: fn (Builder $query) => $query->where('is_archived', false),
+                        blank: fn (Builder $query) => $query,
+                    )
+                    ->default(false),
             ])
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
                 GenerateWordAction::make(),
+                Action::make('toggle_archive')
+                    ->label(fn ($record) => $record->is_archived ? 'Désarchiver' : 'Archiver')
+                    ->icon(fn ($record) => $record->is_archived ? Heroicon::OutlinedArchiveBoxArrowDown : Heroicon::OutlinedArchiveBox)
+                    ->color(fn ($record) => $record->is_archived ? 'success' : 'gray')
+                    ->requiresConfirmation()
+                    ->modalHeading(fn ($record) => $record->is_archived ? 'Désarchiver cette demande ?' : 'Archiver cette demande ?')
+                    ->modalDescription(fn ($record) => $record->is_archived 
+                        ? 'Cette demande redeviendra visible dans la liste principale.'
+                        : 'Cette demande sera masquée de la liste principale. Vous pourrez la retrouver en activant le filtre "Archivées".'
+                    )
+                    ->action(function ($record) {
+                        $record->update(['is_archived' => !$record->is_archived]);
+                        
+                        Notification::make()
+                            ->title($record->is_archived ? 'Demande archivée' : 'Demande désarchivée')
+                            ->success()
+                            ->send();
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

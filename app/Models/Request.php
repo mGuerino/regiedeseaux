@@ -17,6 +17,7 @@ class Request extends Model
         'applicant_id',
         'contact_id',
         'followed_by_user_id',
+        'is_archived',
         'reference',
         'request_date',
         'response_date',
@@ -42,6 +43,7 @@ class Request extends Model
             'response_date' => 'date',
             'created_date' => 'date',
             'updated_date' => 'date',
+            'is_archived' => 'boolean',
         ];
     }
 
