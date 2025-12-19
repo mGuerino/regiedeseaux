@@ -23,6 +23,30 @@ class SendEmailFromRequestAction
             ->label('Envoyer email')
             ->icon(Heroicon::OutlinedPaperAirplane)
             ->color('success')
+            ->fillForm(function ($record) {
+                // Pré-remplir tous les champs AVANT l'ouverture du modal
+                $emails = [];
+                
+                // Priorité au contact, sinon demandeur
+                if ($record->contact && $record->contact->email) {
+                    $emails[] = $record->contact->email;
+                } elseif ($record->applicant && $record->applicant->email) {
+                    $emails[] = $record->applicant->email;
+                }
+
+                $applicantName = $record->applicant 
+                    ? "{$record->applicant->first_name} {$record->applicant->last_name}"
+                    : 'N/A';
+                
+                return [
+                    'document_ids' => $record->documents->pluck('id')->toArray(),
+                    'recipient_emails' => $emails,
+                    'subject' => "Attestation {$record->reference}",
+                    'message' => "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n" . Auth::user()->name,
+                    'mark_as_completed' => false,
+                    'set_response_date' => false,
+                ];
+            })
             ->form(fn ($record) => [
                 Select::make('document_ids')
                     ->label('Documents à envoyer')
@@ -40,24 +64,11 @@ class SendEmailFromRequestAction
 
                         return [$doc->id => "{$icon} {$doc->document_name} ({$size} • {$type})"];
                     }))
-                    ->default(fn () => $record->documents->pluck('id')->toArray())
                     ->helperText('Documents attachés à cette demande'),
 
                 TagsInput::make('recipient_emails')
                     ->label('Destinataires')
                     ->placeholder('email@example.com')
-                    ->default(function () use ($record) {
-                        $emails = [];
-                        
-                        // Priorité au contact, sinon demandeur
-                        if ($record->contact && $record->contact->email) {
-                            $emails[] = $record->contact->email;
-                        } elseif ($record->applicant && $record->applicant->email) {
-                            $emails[] = $record->applicant->email;
-                        }
-                        
-                        return $emails;
-                    })
                     ->required()
                     ->helperText('Emails pré-remplis avec le contact ou demandeur. Appuyez sur Entrée pour ajouter d\'autres destinataires.')
                     ->nestedRecursiveRules(['email']),
@@ -65,30 +76,20 @@ class SendEmailFromRequestAction
                 TextInput::make('subject')
                     ->label('Sujet')
                     ->required()
-                    ->default(fn () => "Attestation {$record->reference}")
                     ->maxLength(255),
 
                 Textarea::make('message')
                     ->label('Message')
                     ->required()
                     ->rows(8)
-                    ->default(function () use ($record) {
-                        $applicantName = $record->applicant 
-                            ? "{$record->applicant->first_name} {$record->applicant->last_name}"
-                            : 'N/A';
-                        
-                        return "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n" . Auth::user()->name;
-                    })
                     ->helperText('Personnalisez le message si nécessaire'),
 
                 Checkbox::make('mark_as_completed')
                     ->label('Marquer la demande comme "Terminée" après l\'envoi')
-                    ->default(false)
                     ->inline(false),
 
                 Checkbox::make('set_response_date')
                     ->label('Définir la date de réponse à aujourd\'hui')
-                    ->default(false)
                     ->inline(false),
             ])
             ->action(function (array $data, $record) {
