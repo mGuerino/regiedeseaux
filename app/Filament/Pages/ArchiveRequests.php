@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\NavigationGroup;
 use App\Models\Request;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -28,7 +29,7 @@ class ArchiveRequests extends Page implements HasForms
 
     protected static ?string $title = 'Archivage des demandes';
 
-    protected static ?string $navigationGroup = 'Administration';
+    protected static NavigationGroup $navigationGroup = NavigationGroup::Administration;
 
     protected static ?int $navigationSort = 99;
 
