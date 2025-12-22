@@ -28,6 +28,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 
 class RequestsTable
 {
@@ -35,14 +36,22 @@ class RequestsTable
     {
         return $table
             ->columns([
-                // 1. ID - Identifiant technique
+                // 1. ID - Identifiant technique (visible, rétréci)
                 TextColumn::make('id')
                     ->label('ID')
                     ->sortable()
                     ->searchable()
-                    ->width('1%'),
+                    ->width('60px'),
 
-                // 2. Statut - Information prioritaire
+                // 2. Date demande
+                TextColumn::make('request_date')
+                    ->label('Date demande')
+                    ->date('d/m/Y')
+                    ->icon(Heroicon::Calendar)
+                    ->sortable()
+                    ->toggleable(),
+
+                // 3. Statut - Information prioritaire
                 TextColumn::make('request_status')
                     ->label('Statut')
                     ->badge()
@@ -62,29 +71,33 @@ class RequestsTable
                     ->searchable()
                     ->alignment(Alignment::Center),
 
-                // 3. AEP - Compact, à côté du statut
+                // 4. AEP - Compact, à côté du statut
                 IconColumn::make('water_status')
                     ->label('AEP')
                     ->boolean()
                     ->width('1%')
                     ->toggleable(),
 
-                // 4. EU - Compact, à côté du statut
+                // 5. EU - Compact, à côté du statut
                 IconColumn::make('wastewater_status')
                     ->label('EU')
                     ->boolean()
                     ->width('1%')
                     ->toggleable(),
 
-                // 5. Référence - Identifiant métier principal
+                // 6. Référence - Identifiant métier principal (avec parcelles en dessous)
                 TextColumn::make('reference')
                     ->label('Référence')
                     ->searchable()
                     ->sortable()
                     ->weight(FontWeight::Bold)
+                    ->description(fn ($record) => $record->parcels->isEmpty() 
+                        ? null 
+                        : new HtmlString(view('filament.components.parcels-badges', ['parcels' => $record->parcels])->render())
+                    )
                     ->grow(),
 
-                // 6. Demandeur
+                // 7. Demandeur
                 TextColumn::make('applicant.last_name')
                     ->label('Demandeur')
                     ->icon(Heroicon::User)
@@ -92,22 +105,15 @@ class RequestsTable
                     ->formatStateUsing(fn ($record) => $record->applicant 
                         ? "{$record->applicant->last_name} {$record->applicant->first_name}" 
                         : '-')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                // 7. Commune
+                // 8. Commune
                 TextColumn::make('municipality.name')
                     ->label('Commune')
                     ->icon(Heroicon::MapPin)
                     ->searchable()
                     ->sortable(),
-
-                // 8. Date demande
-                TextColumn::make('request_date')
-                    ->label('Date demande')
-                    ->date('d/m/Y')
-                    ->icon(Heroicon::Calendar)
-                    ->sortable()
-                    ->toggleable(),
 
                 // 9. Date réponse
                 TextColumn::make('response_date')
@@ -118,7 +124,7 @@ class RequestsTable
                     ->sortable()
                     ->toggleable(),
 
-                // 10. Contact - Visible par défaut
+                // 10. Contact - Caché par défaut
                 TextColumn::make('contact.last_name')
                     ->label('Contact')
                     ->icon(Heroicon::AtSymbol)
@@ -127,9 +133,9 @@ class RequestsTable
                         ? "{$record->contact->first_name} {$record->contact->last_name}" 
                         : '-')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                // 11. Suivi par - Visible par défaut
+                // 11. Suivi par - Caché par défaut
                 TextColumn::make('followedByUser.name')
                     ->label('Suivi par')
                     ->icon(Heroicon::UserCircle)
@@ -141,9 +147,9 @@ class RequestsTable
                         : '-'
                     )
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                // 12. Parcelles - Visible par défaut
+                // 12. Parcelles - Caché par défaut (affichées sous Référence)
                 TextColumn::make('parcels_list')
                     ->label('Parcelles')
                     ->badge()
@@ -153,7 +159,7 @@ class RequestsTable
                             $query->where('ident', 'like', "%{$search}%");
                         });
                     })
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 // 13. Signataire - Caché par défaut
                 TextColumn::make('signatory.name')
