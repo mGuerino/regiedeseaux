@@ -3,12 +3,12 @@
 namespace App\Filament\Actions;
 
 use App\Models\Document;
+use App\Models\DocumentTemplate;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use PhpOffice\PhpWord\Element\TextRun;
 use PhpOffice\PhpWord\TemplateProcessor;
 
 class GenerateWordAction
@@ -22,64 +22,47 @@ class GenerateWordAction
             ->action(fn ($record) => self::generate($record));
     }
 
-    public static function generate($record): void
+    public static function generate($record, ?int $templateId = null): void
     {
-        $templateProcessor = new TemplateProcessor(base_path('templates/template_attestation.docx'));
-
-        // Adresse avec sauts de ligne
-        $addressTextRun = new TextRun;
-        $addressTextRun->addText($record->applicant->address ?? '');
-        $addressTextRun->addTextBreak();
-        if ($record->applicant->address2) {
-            $addressTextRun->addText($record->applicant->address2);
-            $addressTextRun->addTextBreak();
+        // Récupérer le template (par défaut ou spécifié)
+        $template = $templateId 
+            ? DocumentTemplate::findOrFail($templateId)
+            : DocumentTemplate::getDefault();
+        
+        if (!$template) {
+            Notification::make()
+                ->title('Erreur')
+                ->body('Aucun template par défaut défini. Veuillez configurer un template dans la page Templates.')
+                ->danger()
+                ->send();
+            return;
         }
-        $addressTextRun->addText(($record->applicant->postal_code ?? '').' '.($record->applicant->city ?? ''));
 
-        $parcelsList = $record->parcels->map(function ($parcel) {
-            return $parcel->ident;
-        })->implode(', ') ?: 'Aucune parcelle';
+        $templateProcessor = new TemplateProcessor($template->getFullPath());
 
-        // Liste des rues avec sauts de ligne
-        // Utilise pivot.road_name si rempli, sinon fallback sur road.name
-        $roadsList = $record->roads->map(function ($road) {
-            return $road->pivot->road_name ?: $road->name;
-        })->filter()->implode("\n") ?: 'Aucune rue';
+        // Construire le mapping complet des données
+        $dataMapping = self::buildDataMapping($record);
+        
+        // Obtenir le mapping complet du template (auto + manuel)
+        $templateMapping = $template->getFullMapping();
 
-        // Mapping des valeurs pour Word
-        $mapping = [
-            'demandeur.nom' => $record->applicant->last_name ?? 'N/A',
-            'demandeur.prenom' => $record->applicant->first_name ?? 'N/A',
-            'demandeur.contact' => $record->contact ? "{$record->contact->first_name} {$record->contact->last_name}" : 'N/A',
-            'demandeur.adresse' => $addressTextRun,
-            'reference' => $record->reference ?? 'N/A',
-            'commune.nom' => $record->municipality->name ?? 'N/A',
-            'demande.date' => $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A',
-            'demande.adresse' => $roadsList,
-            'parcelles' => $parcelsList,
-            'interlocuteur.nom' => $record->contactPerson->name ?? 'N/A',
-            'interlocuteur.tel' => $record->contactPerson->phone ?? 'N/A',
-            'statut.adduction' => $record->wastewater_status ? 'Raccordable' : 'Non raccordable',
-            'statut.reseauPublic' => $record->water_status ? 'Raccordable' : 'Non raccordable',
-            'signataire.nom' => $record->signatory->name ?? '',
-            'signataire.fonction' => $record->signatory->title ?? '',
-            'certifier.nom' => $record->certifier->name ?? '',
-            'certifier.fonction' => $record->certifier->title ?? '',
-            'observations' => $record->observations ?? '',
-            'utilisateur.nom' => $record->followedByUser 
-                ? ($record->followedByUser->first_name 
-                    ? "{$record->followedByUser->first_name} {$record->followedByUser->name}"
-                    : $record->followedByUser->name)
-                : 'N/A',
-
-        ];
-
-        foreach ($mapping as $key => $value) {
-            if ($key === 'demandeur.adresse') {
-                $templateProcessor->setComplexValue($key, $value);
+        // Appliquer les valeurs pour chaque variable du template
+        foreach ($template->variables ?? [] as $variable) {
+            // Chercher le mapping de la variable
+            $mappingKey = $templateMapping[$variable] ?? null;
+            
+            if (!$mappingKey) {
+                // Variable non mappée → vide
+                $value = '';
+            } elseif (str_starts_with($mappingKey, '__FIXED__:')) {
+                // Valeur fixe
+                $value = substr($mappingKey, 10);
             } else {
-                $templateProcessor->setValue($key, $value);
+                // Résoudre la valeur depuis le mapping
+                $value = self::resolveValue($record, $mappingKey, $dataMapping);
             }
+            
+            $templateProcessor->setValue($variable, $value ?? '');
         }
 
         // Créer la structure de dossiers organisée par mois (ANNÉE.MOIS)
@@ -128,4 +111,106 @@ class GenerateWordAction
             ])
             ->send();
     }
+
+    /**
+     * Construire le mapping complet des données disponibles
+     */
+    private static function buildDataMapping($record): array
+    {
+        // Liste des rues et parcelles
+        $parcelsList = $record->parcels->map(fn ($parcel) => $parcel->ident)->implode(', ') ?: 'Aucune parcelle';
+        $roadsList = $record->roads->map(fn ($road) => $road->pivot->road_name ?: $road->name)->filter()->implode("\n") ?: 'Aucune rue';
+
+        return [
+            // Demande
+            'reference' => $record->reference ?? 'N/A',
+            'request_date' => $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A',
+            'response_date' => $record->response_date ? $record->response_date->format('d/m/Y') : 'N/A',
+            'request_status_text' => match($record->request_status) {
+                1 => 'En cours',
+                2 => 'Terminée',
+                3 => 'Annulée',
+                default => 'N/A',
+            },
+            'water_status_text' => $record->water_status ? 'Raccordable' : 'Non raccordable',
+            'wastewater_status_text' => $record->wastewater_status ? 'Raccordable' : 'Non raccordable',
+            'observations' => $record->observations ?? '',
+            'map_url' => $record->map_url ?? '',
+            
+            // Demandeur
+            'applicant.last_name' => $record->applicant->last_name ?? 'N/A',
+            'applicant.first_name' => $record->applicant->first_name ?? 'N/A',
+            'applicant.full_name' => trim(($record->applicant->first_name ?? '') . ' ' . ($record->applicant->last_name ?? '')) ?: 'N/A',
+            'applicant.address' => $record->applicant->address ?? '',
+            'applicant.address2' => $record->applicant->address2 ?? '',
+            'applicant.postal_code' => $record->applicant->postal_code ?? '',
+            'applicant.city' => $record->applicant->city ?? '',
+            'applicant.full_address' => trim(implode("\n", array_filter([
+                $record->applicant->address ?? null,
+                $record->applicant->address2 ?? null,
+                trim(($record->applicant->postal_code ?? '') . ' ' . ($record->applicant->city ?? '')),
+            ]))),
+            'applicant.email' => $record->applicant->email ?? '',
+            'applicant.phone1' => $record->applicant->phone1 ?? '',
+            'applicant.phone2' => $record->applicant->phone2 ?? '',
+            
+            // Contact
+            'contact.first_name' => $record->contact->first_name ?? 'N/A',
+            'contact.last_name' => $record->contact->last_name ?? 'N/A',
+            'contact.full_name' => $record->contact ? trim("{$record->contact->first_name} {$record->contact->last_name}") : 'N/A',
+            'contact.email' => $record->contact->email ?? '',
+            'contact.phone' => $record->contact->phone ?? '',
+            
+            // Commune
+            'municipality.code' => $record->municipality->code ?? 'N/A',
+            'municipality.name' => $record->municipality->name ?? 'N/A',
+            'municipality.postal_code' => $record->municipality->postal_code ?? '',
+            'municipality.display_name' => $record->municipality->display_name ?? '',
+            
+            // Signataire
+            'signatory.name' => $record->signatory->name ?? '',
+            'signatory.title' => $record->signatory->title ?? '',
+            'signatory.phone' => $record->signatory->phone ?? '',
+            'signatory.email' => $record->signatory->email ?? '',
+            
+            // Certificateur
+            'certifier.name' => $record->certifier->name ?? '',
+            'certifier.title' => $record->certifier->title ?? '',
+            'certifier.phone' => $record->certifier->phone ?? '',
+            'certifier.email' => $record->certifier->email ?? '',
+            
+            // Interlocuteur
+            'contactPerson.name' => $record->contactPerson->name ?? 'N/A',
+            'contactPerson.title' => $record->contactPerson->title ?? '',
+            'contactPerson.phone' => $record->contactPerson->phone ?? 'N/A',
+            'contactPerson.email' => $record->contactPerson->email ?? '',
+            
+            // Utilisateur
+            'followedByUser.name' => $record->followedByUser->name ?? 'N/A',
+            'followedByUser.first_name' => $record->followedByUser->first_name ?? '',
+            'followedByUser.full_name' => $record->followedByUser 
+                ? trim(($record->followedByUser->first_name ?? '') . ' ' . ($record->followedByUser->name ?? ''))
+                : 'N/A',
+            'followedByUser.email' => $record->followedByUser->email ?? '',
+            
+            // Valeurs calculées spéciales
+            'parcelles' => $parcelsList,
+            'demande.adresse' => $roadsList,
+        ];
+    }
+
+    /**
+     * Résoudre une valeur depuis le mapping
+     */
+    private static function resolveValue($record, string $mappingKey, array $dataMapping): string
+    {
+        // Chercher dans le data mapping pré-construit
+        if (isset($dataMapping[$mappingKey])) {
+            return (string) $dataMapping[$mappingKey];
+        }
+        
+        // Si pas trouvé, retourner vide
+        return '';
+    }
 }
+
