@@ -1,4 +1,3 @@
-@source
 <div class="flex flex-wrap gap-1.5">
     @foreach($parcels->take(5) as $parcel)
         <x-filament::badge>

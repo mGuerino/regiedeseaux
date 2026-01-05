@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Requests\Tables;
 
 use App\Filament\Actions\GenerateWordAction;
+use App\Filament\Resources\Requests\Schemas\RequestViewSchema;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -17,6 +18,7 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -417,7 +419,9 @@ class RequestsTable
                 $filters['is_archived']->columnSpanFull(),
             ])
             ->recordActions([
-                ViewAction::make(),
+                ViewAction::make()
+                    ->schema(RequestViewSchema::getComponents())
+                    ->modalWidth(Width::SevenExtraLarge),
                 EditAction::make(),
                 GenerateWordAction::make(),
                 Action::make('toggle_archive')
