@@ -40,7 +40,7 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => '#003143',
                 'secondary' => '#ff9900',
             ])
-            ->maxContentWidth(Width::ScreenExtraLarge) // Largeur maximale augmentée pour les tables
+            ->maxContentWidth(Width::ScreenTwoExtraLarge) // Largeur maximale augmentée pour les tables
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
