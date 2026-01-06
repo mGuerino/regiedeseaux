@@ -32,6 +32,12 @@ class RequestsRelationManager extends RelationManager
 {
     protected static string $relationship = 'requests';
 
+    protected static ?string $title = 'Demandes';
+
+    protected static ?string $modelLabel = 'demande';
+
+    protected static ?string $pluralModelLabel = 'demandes';
+
     public function form(Schema $schema): Schema
     {
         return $schema

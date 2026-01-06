@@ -20,6 +20,12 @@ class ParcelsRelationManager extends RelationManager
 {
     protected static string $relationship = 'parcels';
 
+    protected static ?string $title = 'Parcelles';
+
+    protected static ?string $modelLabel = 'parcelle';
+
+    protected static ?string $pluralModelLabel = 'parcelles';
+
     public function form(Schema $schema): Schema
     {
         return $schema
