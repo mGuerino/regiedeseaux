@@ -381,17 +381,6 @@ class RequestsTable
             ])
             ->filtersFormColumns(3)
             ->filtersFormSchema(fn (array $filters): array => [
-                // Section Dates
-                Section::make('Dates')
-                    ->description('Filtrer par périodes')
-                    ->schema([
-                        $filters['request_date'],
-                        $filters['response_date'],
-                    ])
-                    ->columns(2)
-                    ->columnSpan(2)
-                    ->collapsible(),
-
                 // Section Critères généraux
                 Section::make('Critères généraux')
                     ->schema([
@@ -399,6 +388,17 @@ class RequestsTable
                         $filters['request_status'],
                         $filters['water_status'],
                         $filters['wastewater_status'],
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2)
+                    ->collapsible(),
+
+                // Section Dates
+                Section::make('Dates')
+                    ->description('Filtrer par périodes')
+                    ->schema([
+                        $filters['request_date'],
+                        $filters['response_date'],
                     ])
                     ->columns(2)
                     ->columnSpan(1)
