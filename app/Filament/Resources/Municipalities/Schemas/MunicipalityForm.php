@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Municipalities\Schemas;
 
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -15,6 +14,7 @@ class MunicipalityForm
         return $schema
             ->components([
                 Section::make('Informations générales')
+                    ->columnSpanFull()
                     ->schema([
                         Grid::make(2)
                             ->schema([
@@ -23,6 +23,8 @@ class MunicipalityForm
                                     ->required()
                                     ->maxLength(10)
                                     ->disabled(fn ($record) => $record !== null)
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn ($state, callable $set, callable $get) => self::updateCodeWithDivision($state, $get('division'), $set))
                                     ->columnSpan(1),
 
                                 TextInput::make('name')
@@ -43,52 +45,54 @@ class MunicipalityForm
                                     ->maxLength(10)
                                     ->columnSpan(1),
 
-                                TextInput::make('code_with_division')
+                                TextInput::make('division')
+                                    ->label('Division')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(9)
+                                    ->maxLength(1)
+                                    ->default('2')
+                                    ->required()
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn ($state, callable $set, callable $get) => self::updateCodeWithDivision($get('code'), $state, $set))
+                                    ->afterStateHydrated(function (TextInput $component, ?string $state, callable $get) {
+                                        // Extract division from code_with_division when editing
+                                        $codeWithDivision = $get('code_with_division');
+                                        if ($codeWithDivision && strlen($codeWithDivision) >= 3) {
+                                            $division = substr($codeWithDivision, 2, 1);
+                                            $component->state($division);
+                                        }
+                                    })
+                                    ->dehydrated(false)
+                                    ->columnSpan(1),
+
+                                 TextInput::make('code_with_division')
                                     ->label('Code avec division')
                                     ->required()
                                     ->maxLength(10)
                                     ->columnSpan(1),
                             ]),
                     ]),
-
-                Section::make('Gestion')
-                    ->schema([
-                        Grid::make(3)
-                            ->schema([
-                                Select::make('road_management_mode')
-                                    ->label('Mode de gestion des rues')
-                                    ->options([
-                                        'AUTO' => 'Automatique',
-                                        'MANUAL' => 'Manuel',
-                                    ])
-                                    ->required()
-                                    ->native(false)
-                                    ->default('AUTO')
-                                    ->columnSpan(1),
-
-                                Select::make('park_management_mode')
-                                    ->label('Mode de gestion des parcs')
-                                    ->options([
-                                        'AUTO' => 'Automatique',
-                                        'MANUAL' => 'Manuel',
-                                    ])
-                                    ->required()
-                                    ->native(false)
-                                    ->default('AUTO')
-                                    ->columnSpan(1),
-
-                                TextInput::make('last_road_number')
-                                    ->label('Dernier numéro de rue')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->columnSpan(1),
-
-                                TextInput::make('park_format')
-                                    ->label('Format des parcs')
-                                    ->maxLength(255)
-                                    ->columnSpan(3),
-                            ]),
-                    ]),
             ]);
+    }
+
+    protected static function updateCodeWithDivision(?string $code, ?string $division, callable $set): void
+    {
+        if (!$code || !$division) {
+            return;
+        }
+
+        // Extract département (first 2 digits) and commune number (rest)
+        if (strlen($code) < 3) {
+            return;
+        }
+
+        $dept = substr($code, 0, 2);
+        $num = substr($code, 2);
+
+        // Calculate code_with_division: dept + division + num
+        $codeWithDivision = $dept . $division . $num;
+
+        $set('code_with_division', $codeWithDivision);
     }
 }
