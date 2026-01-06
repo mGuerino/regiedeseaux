@@ -20,6 +20,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
@@ -68,53 +69,96 @@ class RequestsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('reference')
             ->columns([
-                TextColumn::make('applicant.id')
-                    ->searchable(),
-                TextColumn::make('contact')
-                    ->searchable(),
                 TextColumn::make('reference')
-                    ->searchable(),
-                TextColumn::make('request_date')
-                    ->date()
+                    ->label('Référence')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('response_date')
+                TextColumn::make('applicant.last_name')
+                    ->label('Demandeur')
+                    ->icon(Heroicon::User)
+                    ->searchable(['last_name', 'first_name'])
+                    ->formatStateUsing(fn ($record) => $record->applicant 
+                        ? "{$record->applicant->last_name} {$record->applicant->first_name}" 
+                        : '-')
+                    ->sortable(),
+                TextColumn::make('contact.last_name')
+                    ->label('Contact')
+                    ->icon(Heroicon::AtSymbol)
+                    ->searchable(['first_name', 'last_name', 'email'])
+                    ->formatStateUsing(fn ($record) => $record->contact 
+                        ? "{$record->contact->first_name} {$record->contact->last_name}" 
+                        : '-')
+                    ->sortable(),
+                TextColumn::make('request_date')
+                    ->label('Date demande')
                     ->date()
                     ->sortable(),
                 IconColumn::make('request_status')
+                    ->label('Statut demande')
                     ->boolean(),
+                TextColumn::make('response_date')
+                    ->label('Date réponse')
+                    ->date()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 IconColumn::make('water_status')
-                    ->boolean(),
+                    ->label('Statut eau')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 IconColumn::make('wastewater_status')
-                    ->boolean(),
+                    ->label('Statut assainissement')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('observations')
-                    ->searchable(),
+                    ->label('Observations')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('signatory.name')
-                    ->searchable(),
-                TextColumn::make('map_url')
-                    ->searchable(),
+                    ->label('Signataire')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('certifier.name')
-                    ->searchable(),
+                    ->label('Certificateur')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('contactPerson.name')
-                    ->searchable(),
+                    ->label('Personne contact')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('map_url')
+                    ->label('URL carte')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_by')
-                    ->searchable(),
+                    ->label('Créé par')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_date')
+                    ->label('Date création')
                     ->date()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_by')
-                    ->searchable(),
+                    ->label('Modifié par')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_date')
+                    ->label('Date modification')
                     ->date()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_at')
+                    ->label('Mis à jour')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
+                    ->label('Créé')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('deleted_at')
+                    ->label('Supprimé')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
