@@ -71,6 +71,12 @@ class GenerateWordAction
         $wordFileName = "attestation_{$record->id}.docx";
         $relativePath = "{$monthFolder}/{$wordFileName}";
         
+        // Vérifier si un document identique existe déjà pour cette demande
+        $existingDocument = Document::where('request_id', $record->id)
+            ->where('file_name', $relativePath)
+            ->where('document_type', 'generated')
+            ->first();
+
         // Sauvegarder temporairement pour traitement avec PHPWord
         $tempPath = storage_path("app/temp_{$timestamp}_{$wordFileName}");
         $templateProcessor->saveAs($tempPath);
@@ -85,24 +91,36 @@ class GenerateWordAction
         // Nettoyer le fichier temporaire
         @unlink($tempPath);
         
-        // Enregistrer dans la base de données avec type 'generated'
-        Document::create([
-            'request_id' => $record->id,
-            'document_type' => 'generated',
-            'file_name' => $relativePath,
-            'document_name' => "Attestation - {$record->reference}.docx",
-            'created_by' => Auth::user()->name,
-            'created_date' => now(),
-        ]);
+        // Mettre à jour le document existant ou créer un nouveau
+        if ($existingDocument) {
+            $existingDocument->update([
+                'document_name' => "Attestation - {$record->reference}.docx",
+                'created_by' => Auth::user()->name,
+                'created_date' => now(),
+            ]);
+            
+            $actionMessage = 'régénérée';
+        } else {
+            Document::create([
+                'request_id' => $record->id,
+                'document_type' => 'generated',
+                'file_name' => $relativePath,
+                'document_name' => "Attestation - {$record->reference}.docx",
+                'created_by' => Auth::user()->name,
+                'created_date' => now(),
+            ]);
+            
+            $actionMessage = 'générée';
+        }
         
         // URL pour téléchargement via le symlink storage
         $downloadUrl = asset("storage/{$relativePath}");
 
         // Notification de succès avec lien de téléchargement
         Notification::make()
-            ->title('Attestation générée')
+            ->title('Attestation ' . $actionMessage)
             ->success()
-            ->body("L'attestation pour la demande {$record->reference} a été générée avec succès.")
+            ->body("L'attestation pour la demande {$record->reference} a été {$actionMessage} avec succès.")
             ->actions([
                 Action::make('download')
                     ->label('Télécharger')

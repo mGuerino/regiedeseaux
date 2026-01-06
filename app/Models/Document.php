@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class Document extends Model
@@ -39,7 +40,9 @@ class Document extends Model
      */
     public function getFileExtension(): string
     {
-        return strtolower(pathinfo($this->file_name, PATHINFO_EXTENSION));
+        $extension = pathinfo($this->file_name, PATHINFO_EXTENSION);
+
+        return $extension ? strtolower($extension) : '';
     }
 
     /**
@@ -84,13 +87,22 @@ class Document extends Model
 
             $bytes = Storage::size($this->file_name);
             $units = ['o', 'Ko', 'Mo', 'Go'];
+            $i = 0;
 
-            for ($i = 0; $bytes > 1024 && $i < 3; $i++) {
+            // Boucle sécurisée pour éviter les erreurs d'index
+            while ($bytes > 1024 && $i < count($units) - 1) {
                 $bytes /= 1024;
+                $i++;
             }
 
             return round($bytes, 1).' '.$units[$i];
-        } catch (\Exception) {
+        } catch (\Exception $e) {
+            // Logger l'erreur pour debugging
+            Log::error('Erreur lors de la récupération de la taille du fichier pour le document: '.$this->id, [
+                'file_name' => $this->file_name,
+                'error' => $e->getMessage(),
+            ]);
+
             return 'N/A';
         }
     }

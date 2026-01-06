@@ -18,6 +18,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 class SendEmailFromRequestAction
 {
@@ -136,6 +137,24 @@ class SendEmailFromRequestAction
                     return;
                 }
 
+                // Vérifier que tous les fichiers existent
+                $missingFiles = [];
+                foreach ($documents as $document) {
+                    if (! Storage::exists($document->file_name)) {
+                        $missingFiles[] = $document->document_name;
+                    }
+                }
+
+                if (! empty($missingFiles)) {
+                    Notification::make()
+                        ->title('Fichiers manquants')
+                        ->body('Les fichiers suivants sont introuvables : '.implode(', ', $missingFiles))
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 // Récupération des emails depuis les clés + emails manuels
                 $emails = static::getRecipientEmails($data['recipient_keys'] ?? [], $data['manual_emails'] ?? []);
 
@@ -174,7 +193,7 @@ class SendEmailFromRequestAction
                 foreach ($emails as $email) {
                     try {
                         Mail::to($email)->send(new DocumentEmail(
-                            subject: $data['subject'],
+                            emailSubject: $data['subject'],
                             messageContent: $data['message'],
                             documents: $documents,
                         ));

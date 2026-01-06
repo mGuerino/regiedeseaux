@@ -403,7 +403,7 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
         foreach ($recipients as $email) {
             try {
                 Mail::to($email)->send(new DocumentEmail(
-                    subject: $state['subject'],
+                    emailSubject: $state['subject'],
                     messageContent: $state['message'],
                     documents: $documents,
                 ));

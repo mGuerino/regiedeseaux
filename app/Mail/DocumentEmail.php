@@ -17,7 +17,7 @@ class DocumentEmail extends Mailable
     use Queueable, SerializesModels;
 
     public function __construct(
-        public string $subject,
+        public string $emailSubject,
         public string $messageContent,
         public Collection $documents,
     ) {}
@@ -25,7 +25,7 @@ class DocumentEmail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: $this->subject,
+            subject: $this->emailSubject,
         );
     }
 
