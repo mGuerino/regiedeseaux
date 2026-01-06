@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\TemplateProcessor;
 
 class DocumentTemplate extends Model
@@ -22,7 +23,14 @@ class DocumentTemplate extends Model
         'is_default' => 'boolean',
         'variables' => 'array',
         'variable_mappings' => 'array',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
+
+    /**
+     * Nom du disque de stockage pour les templates
+     */
+    public const DISK = 'templates';
 
     /**
      * Récupérer le template par défaut actif
@@ -44,11 +52,27 @@ class DocumentTemplate extends Model
     }
 
     /**
+     * Obtenir le disque de stockage
+     */
+    public static function disk(): \Illuminate\Contracts\Filesystem\Filesystem
+    {
+        return Storage::disk(self::DISK);
+    }
+
+    /**
      * Obtenir le chemin absolu du fichier template
      */
     public function getFullPath(): string
     {
-        return storage_path("app/{$this->file_path}");
+        return self::disk()->path($this->file_path);
+    }
+
+    /**
+     * Vérifier si le fichier physique existe
+     */
+    public function fileExists(): bool
+    {
+        return $this->file_path && self::disk()->exists($this->file_path);
     }
 
     /**
@@ -229,5 +253,44 @@ class DocumentTemplate extends Model
     public function getManuallyMappedVariables(): array
     {
         return array_keys($this->variable_mappings ?? []);
+    }
+
+    /**
+     * Obtenir les statistiques de variables
+     */
+    public function getVariableStats(): array
+    {
+        return [
+            'total' => count($this->variables ?? []),
+            'auto' => count($this->getAutoMappedVariables()),
+            'manual' => count($this->getManuallyMappedVariables()),
+            'unmapped' => count($this->getUnmappedVariables()),
+        ];
+    }
+
+    /**
+     * Vérifier si le template a des variables non mappées
+     */
+    public function hasUnmappedVariables(): bool
+    {
+        return count($this->getUnmappedVariables()) > 0;
+    }
+
+    /**
+     * Obtenir les statistiques globales
+     */
+    public static function getGlobalStats(): array
+    {
+        $total = self::count();
+        $active = self::where('is_active', true)->count();
+        $default = self::where('is_default', true)->first();
+        $withUnmapped = self::all()->filter(fn($t) => $t->hasUnmappedVariables())->count();
+
+        return [
+            'total' => $total,
+            'active' => $active,
+            'default' => $default,
+            'with_unmapped' => $withUnmapped,
+        ];
     }
 }
