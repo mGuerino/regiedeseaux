@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +20,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Enregistrer les widgets Filament utilisés uniquement dans des pages spécifiques
+        // (pas sur le Dashboard principal)
+        Livewire::component(
+            'app.filament.widgets.template-stats-widget',
+            \App\Filament\Widgets\TemplateStatsWidget::class
+        );
     }
 }

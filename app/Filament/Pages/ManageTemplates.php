@@ -373,7 +373,7 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                                 if (!$value) {
                                     return;
                                 }
-                                
+
                                 try {
                                     // Gérer le fichier temporaire pendant l'upload ou le chemin sur disque
                                     if ($value instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
@@ -381,19 +381,19 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                                     } else {
                                         $path = DocumentTemplate::disk()->path($value);
                                     }
-                                    
+
                                     // Vérifier que le fichier existe
                                     if (!file_exists($path)) {
                                         $fail('Le fichier est introuvable.');
                                         return;
                                     }
-                                    
+
                                     // Tenter d'ouvrir avec PhpWord pour valider la structure
                                     $processor = new TemplateProcessor($path);
-                                    
+
                                     // Extraire les variables (optionnel, pas d'échec si vide)
                                     $processor->getVariables();
-                                    
+
                                 } catch (\Exception $e) {
                                     // Message convivial pour tout problème
                                     $fail('Le fichier Word n\'est pas valide ou est corrompu. Assurez-vous qu\'il s\'agit d\'un fichier .docx ou .doc valide.');
