@@ -6,7 +6,10 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ParcelsTable
 {
@@ -56,7 +59,35 @@ class ParcelsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('codcomm')
+                    ->label('Commune')
+                    ->relationship('municipality', 'name')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('ccosec')
+                    ->label('Section')
+                    ->options(fn () => \App\Models\Parcel::query()
+                        ->distinct()
+                        ->pluck('ccosec', 'ccosec')
+                        ->filter()
+                        ->sort()
+                    )
+                    ->searchable(),
+                SelectFilter::make('sect_cad')
+                    ->label('Section cadastrale')
+                    ->options(fn () => \App\Models\Parcel::query()
+                        ->distinct()
+                        ->pluck('sect_cad', 'sect_cad')
+                        ->filter()
+                        ->sort()
+                    )
+                    ->searchable(),
+                Filter::make('has_requests')
+                    ->label('Avec demandes')
+                    ->query(fn (Builder $query): Builder => $query->has('requests')),
+                Filter::make('no_requests')
+                    ->label('Sans demandes')
+                    ->query(fn (Builder $query): Builder => $query->doesntHave('requests')),
             ])
             ->recordActions([
                 EditAction::make(),
@@ -66,6 +97,7 @@ class ParcelsTable
                     DeleteBulkAction::make(),
                 ]),
             ])
+            ->deferFilters(false)
             ->defaultSort('ident');
     }
 }

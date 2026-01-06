@@ -8,8 +8,11 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class RoadsTable
 {
@@ -42,6 +45,17 @@ class RoadsTable
             ])
             ->filters([
                 TrashedFilter::make(),
+                SelectFilter::make('municipality_code')
+                    ->label('Commune')
+                    ->relationship('municipality', 'name')
+                    ->searchable()
+                    ->preload(),
+                Filter::make('has_requests')
+                    ->label('Avec demandes')
+                    ->query(fn (Builder $query): Builder => $query->has('requests')),
+                Filter::make('no_requests')
+                    ->label('Sans demandes')
+                    ->query(fn (Builder $query): Builder => $query->doesntHave('requests')),
             ])
             ->recordActions([
                 EditAction::make(),
@@ -53,6 +67,7 @@ class RoadsTable
                     RestoreBulkAction::make(),
                 ]),
             ])
+            ->deferFilters(false)
             ->defaultSort('name');
     }
 }

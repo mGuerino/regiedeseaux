@@ -9,7 +9,9 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ExportAction;
 use Filament\Actions\ExportBulkAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ContactsTable
 {
@@ -50,7 +52,18 @@ class ContactsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                Filter::make('has_requests')
+                    ->label('Avec demandes')
+                    ->query(fn (Builder $query): Builder => $query->has('requests')),
+                Filter::make('no_requests')
+                    ->label('Sans demandes')
+                    ->query(fn (Builder $query): Builder => $query->doesntHave('requests')),
+                Filter::make('has_email')
+                    ->label('Avec email')
+                    ->query(fn (Builder $query): Builder => $query->whereNotNull('email')->where('email', '!=', '')),
+                Filter::make('has_phone')
+                    ->label('Avec téléphone')
+                    ->query(fn (Builder $query): Builder => $query->whereNotNull('phone')->where('phone', '!=', '')),
             ])
             ->recordActions([
                 EditAction::make(),
@@ -67,6 +80,7 @@ class ContactsTable
                         ->formats(['csv', 'xlsx']),
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->deferFilters(false);
     }
 }
