@@ -15,6 +15,7 @@ use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\FontWeight;
@@ -397,8 +398,14 @@ class RequestsTable
                 Section::make('Dates')
                     ->description('Filtrer par périodes')
                     ->schema([
-                        $filters['request_date'],
-                        $filters['response_date'],
+                        Fieldset::make('Date de demande')
+                            ->schema([
+                                $filters['request_date'],
+                            ]),
+                        Fieldset::make('Date de réponse')
+                            ->schema([
+                                $filters['response_date'],
+                            ]),
                     ])
                     ->columns(1)
                     ->columnSpan(1)
