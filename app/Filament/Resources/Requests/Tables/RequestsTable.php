@@ -379,7 +379,7 @@ class RequestsTable
                     )
                     ->default(false),
             ])
-            ->filtersFormColumns(5)
+            ->filtersFormColumns(3)
             ->filtersFormSchema(fn (array $filters): array => [
                 // Section Critères généraux
                 Section::make('Critères généraux')
@@ -390,7 +390,7 @@ class RequestsTable
                         $filters['wastewater_status'],
                     ])
                     ->columns(2)
-                    ->columnSpan(3)
+                    ->columnSpan(2)
                     ->collapsible(),
 
                 // Section Dates
@@ -400,8 +400,8 @@ class RequestsTable
                         $filters['request_date'],
                         $filters['response_date'],
                     ])
-                    ->columns(2)
-                    ->columnSpan(2)
+                    ->columns(1)
+                    ->columnSpan(1)
                     ->collapsible(),
 
                 // Section Intervenants
