@@ -380,7 +380,8 @@ class RequestsTable
                     )
                     ->default(false),
             ])
-            ->filtersFormColumns(3)
+            ->filtersFormColumns(1)
+            ->filtersFormWidth(Width::ThreeExtraLarge)
             ->filtersFormSchema(fn (array $filters): array => [
                 // Section Critères généraux
                 Section::make('Critères généraux')
@@ -391,7 +392,7 @@ class RequestsTable
                         $filters['wastewater_status'],
                     ])
                     ->columns(2)
-                    ->columnSpan(2)
+                    ->columnSpanFull()
                     ->collapsible(),
 
                 // Section Dates
@@ -401,14 +402,16 @@ class RequestsTable
                         Fieldset::make('Date de demande')
                             ->schema([
                                 $filters['request_date'],
-                            ]),
+                            ])
+                            ->columns(2),
                         Fieldset::make('Date de réponse')
                             ->schema([
                                 $filters['response_date'],
-                            ]),
+                            ])
+                            ->columns(2),
                     ])
-                    ->columns(1)
-                    ->columnSpan(1)
+                    ->columns(2)
+                    ->columnSpanFull()
                     ->collapsible(),
 
                 // Section Intervenants
