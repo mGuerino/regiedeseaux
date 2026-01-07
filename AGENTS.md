@@ -1,8 +1,129 @@
 # Instructions OpenCode - Régie des Eaux
 
-## Framework
-- **Laravel 12 + Filament 4**
-- **Langue**: Français
+## Framework & Environment
+- **Laravel 12 + Filament 4 + Livewire 3**
+- **PHP 8.3.27** | **PHPUnit 11**
+- **Langue**: Français (tous labels, messages, textes utilisateurs)
+- **Served by**: Laravel Herd (https://regiedeseaux.test)
+
+## Build, Lint & Test Commands
+
+### Development
+```bash
+composer run dev          # Start all services (server, queue, logs, vite)
+npm run dev               # Vite dev server (frontend assets)
+npm run build             # Build production assets
+php artisan serve         # Start Laravel dev server
+php artisan queue:listen  # Start queue worker
+php artisan pail          # Live log viewer
+```
+
+### Testing
+```bash
+php artisan test                              # Run all tests
+php artisan test tests/Feature/ExampleTest.php  # Run specific test file
+php artisan test --filter=testMethodName     # Run single test method
+composer run test                             # Clear config + run all tests
+```
+
+### Code Quality
+```bash
+vendor/bin/pint --dirty   # Format changed files (REQUIRED before commit)
+vendor/bin/pint           # Format all files
+php artisan config:clear  # Clear config cache (before tests)
+```
+
+### Artisan Commands
+```bash
+php artisan make:filament-resource ModelName  # Create Filament resource
+php artisan make:livewire ComponentName       # Create Livewire component
+php artisan make:test FeatureName             # Create feature test
+php artisan make:test FeatureName --unit      # Create unit test
+php artisan make:model ModelName -mfs         # Model + migration + factory + seeder
+php artisan tinker                            # Interactive PHP console
+php artisan documents:clean-duplicates        # Clean duplicate documents (custom)
+```
+
+## Code Style Guidelines
+
+### PHP Formatting
+- **Indentation**: 4 spaces (no tabs)
+- **Line endings**: LF (Unix style)
+- **Charset**: UTF-8
+- **Final newline**: Required in all files
+- **Trailing whitespace**: Remove (except Markdown)
+
+### Imports & Namespaces
+- **Order**: Alphabetical, grouped by vendor
+- **One import per line**
+- **Use statements**: Always use fully qualified class names
+- **Example**:
+  ```php
+  use App\Models\Request;
+  use Filament\Actions\Action;
+  use Filament\Support\Enums\Width;
+  use Illuminate\Database\Eloquent\Model;
+  ```
+
+### Type Declarations
+- **REQUIRED**: Explicit return types on ALL methods/functions
+- **REQUIRED**: Type hints for method parameters
+- **Use**: Nullable types (`?string`), union types, array shapes in PHPDoc
+- **Example**:
+  ```php
+  protected function isAccessible(User $user, ?string $path = null): bool
+  {
+      return $user->can('access', $path);
+  }
+  ```
+
+### Naming Conventions
+- **Classes**: PascalCase (`RequestsTable`, `GenerateWordAction`)
+- **Methods/Functions**: camelCase (`mutateFormDataBeforeFill`, `getFileExtension`)
+- **Properties**: camelCase (`$applicantId`, `$requestDate`)
+- **Constants**: SCREAMING_SNAKE_CASE (`MAX_ATTEMPTS`)
+- **Database columns**: snake_case (`request_date`, `municipality_code`)
+- **Descriptive names**: `isRegisteredForDiscounts()` NOT `discount()`
+
+### PHP 8.3 Features
+- **Constructor property promotion**: Use in `__construct()`
+  ```php
+  public function __construct(public GitHub $github) { }
+  ```
+- **Model casts**: Use `casts()` method (not `$casts` property)
+  ```php
+  protected function casts(): array {
+      return ['request_date' => 'date'];
+  }
+  ```
+
+### Control Structures
+- **ALWAYS use curly braces** (even for one-liners)
+- **No empty `__construct()`** methods with zero parameters
+
+### Comments & Documentation
+- **Prefer**: PHPDoc blocks over inline comments
+- **Avoid**: Comments within code (unless very complex logic)
+- **Use**: Array shape type definitions in PHPDoc when appropriate
+
+### Error Handling
+- **Logging**: Use `Log::error()` with context for debugging
+- **Validation**: Use Form Request classes (not inline validation)
+- **Null checks**: Always check for null before operations (e.g., `pathinfo()`)
+- **Example**:
+  ```php
+  if (!$extension = pathinfo($this->file_path, PATHINFO_EXTENSION)) {
+      Log::error("Failed to extract extension", ['path' => $this->file_path]);
+      return '';
+  }
+  ```
+
+### Laravel Conventions
+- **Eloquent**: Prefer relationships over raw queries or joins
+- **Eager loading**: Prevent N+1 queries with `with()`
+- **Route names**: Use `route('name')` not hardcoded URLs
+- **Config**: Use `config('app.name')` NEVER `env('APP_NAME')` outside config files
+- **Queues**: Use `ShouldQueue` interface for time-consuming operations
 
 ## Règles Critiques Filament v4
 

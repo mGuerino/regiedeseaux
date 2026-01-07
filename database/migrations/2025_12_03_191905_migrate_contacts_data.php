@@ -1,8 +1,8 @@
 <?php
 
 use App\Models\Contact;
-use App\Models\Request;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Get all requests with a contact value
-        $requests = Request::whereNotNull('contact')
+        // Get all requests with a contact value using Query Builder to avoid Global Scopes
+        $requests = DB::table('requests')
+            ->whereNotNull('contact')
             ->where('contact', '!=', '')
+            ->whereNull('deleted_at')
             ->get();
 
         foreach ($requests as $request) {
@@ -38,7 +40,7 @@ return new class extends Migration
 
             // Store the contact_id temporarily in the request
             // We'll use this in the next migration
-            \DB::table('requests')
+            DB::table('requests')
                 ->where('id', $request->id)
                 ->update(['contact_id' => $contact->id]);
         }
@@ -50,7 +52,7 @@ return new class extends Migration
     public function down(): void
     {
         // Clear contact_id values
-        \DB::table('requests')->update(['contact_id' => null]);
+        DB::table('requests')->update(['contact_id' => null]);
 
         // Delete all contacts
         Contact::truncate();
