@@ -150,20 +150,6 @@ class RequestForm
                                     ])
                                     ->columnSpan(1),
 
-                                DatePicker::make('request_date')
-                                    ->label('Date de la demande')
-                                    ->required()
-                                    ->default(now())
-                                    ->native(false)
-                                    ->displayFormat('d/m/Y')
-                                    ->columnSpan(1),
-
-                                DatePicker::make('response_date')
-                                    ->label('Date de la réponse')
-                                    ->native(false)
-                                    ->displayFormat('d/m/Y')
-                                    ->columnSpan(1),
-
                                 Select::make('followed_by_user_id')
                                     ->label('Demande suivie par')
                                     ->options(fn() => User::query()
@@ -179,6 +165,20 @@ class RequestForm
                                     ->required()
                                     ->searchable()
                                     ->native(false)
+                                    ->columnSpan(1),
+
+                                DatePicker::make('request_date')
+                                    ->label('Date de la demande')
+                                    ->required()
+                                    ->default(now())
+                                    ->native(false)
+                                    ->displayFormat('d/m/Y')
+                                    ->columnSpan(1),
+
+                                DatePicker::make('response_date')
+                                    ->label('Date de la réponse')
+                                    ->native(false)
+                                    ->displayFormat('d/m/Y')
                                     ->columnSpan(1),
                             ]),
                     ]),
