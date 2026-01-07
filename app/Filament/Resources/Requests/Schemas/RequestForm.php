@@ -77,6 +77,12 @@ class RequestForm
                                     ->native(false)
                                     ->columnSpan(1),
 
+                                TextInput::make('reference')
+                                    ->label('Référence')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->columnSpan(1),
+
                                 Select::make('applicant_id')
                                     ->label('Demandeur')
                                     ->relationship('applicant', 'last_name')
@@ -114,13 +120,7 @@ class RequestForm
                                             ->tel()
                                             ->maxLength(255),
                                     ])
-                                    ->columnSpan(1),
-
-                                TextInput::make('reference')
-                                    ->label('Référence')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->columnSpan(1),
+                                    ->columnSpan(2),
 
                                 Select::make('contact_id')
                                     ->label('Contact')
