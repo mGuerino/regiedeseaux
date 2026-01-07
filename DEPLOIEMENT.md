@@ -41,10 +41,10 @@ git push
 
 ```bash
 # Se connecter au serveur
-ssh user@votre-serveur.com
+ssh administrateur@votre-serveur.com
 
 # Aller dans le dossier du projet
-cd /var/www/regiedeseaux  # (adapter le chemin)
+cd /var/www/regiedeseaux
 
 # Récupérer les modifications (code + assets)
 git pull
@@ -53,14 +53,28 @@ git pull
 composer install --no-dev --optimize-autoloader
 
 # Si nécessaire: migrer la DB
-php artisan migrate --force
+sudo -u www-data php artisan migrate --force
 
-# Vider les caches Laravel
-php artisan cache:clear
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+# ⚠️ IMPORTANT: Vider les caches AVEC les bonnes permissions
+sudo -u www-data php artisan config:clear
+sudo -u www-data php artisan route:clear
+sudo -u www-data php artisan cache:clear
+sudo -u www-data php artisan view:clear
+
+# Optionnel: Optimiser pour la production
+sudo -u www-data php artisan config:cache
+sudo -u www-data php artisan route:cache
+sudo -u www-data php artisan view:cache
+
+# Si tu as modifié des assets (CSS/JS) via npm run build
+sudo chown -R www-data:www-data public/build/
 ```
+
+**💡 Pourquoi `sudo -u www-data` ?**
+- Tu te connectes en tant qu'`administrateur`
+- Nginx tourne sous l'utilisateur `www-data`
+- Les caches/fichiers doivent appartenir à `www-data` pour éviter les erreurs 404/403
+- Sans `sudo -u www-data`, les fichiers créés appartiendront à `administrateur` → problèmes de permissions
 
 ## Première Installation sur un Nouveau Serveur
 
@@ -68,8 +82,8 @@ php artisan view:cache
 
 ```bash
 # 1. Cloner le projet
-git clone https://github.com/mGuerino/regiedeseaux.git
-cd regiedeseaux
+git clone https://github.com/mGuerino/regiedeseaux.git /var/www/regiedeseaux
+cd /var/www/regiedeseaux
 
 # 2. Installer les dépendances PHP
 composer install --no-dev --optimize-autoloader
@@ -79,30 +93,35 @@ cp .env.example .env
 nano .env  # Configurer DB, APP_URL, etc.
 php artisan key:generate
 
-# 4. CRITIQUE: Publier les assets Livewire et Filament
-php artisan livewire:publish --assets
-php artisan filament:assets
+# 4. CRITIQUE: Créer le lien symbolique pour storage AVEC www-data
+sudo -u www-data php artisan storage:link
 
-# 5. CRITIQUE: Créer le lien symbolique pour storage
-php artisan storage:link
+# 5. CRITIQUE: Publier les assets Livewire et Filament
+sudo -u www-data php artisan livewire:publish --assets
+sudo -u www-data php artisan filament:assets
 
-# 6. Configurer les permissions
-chmod -R 775 storage bootstrap/cache
-sudo chown -R www-data:www-data storage bootstrap/cache public/storage
+# 6. CRITIQUE: Configurer les permissions (www-data = utilisateur Nginx)
+sudo chown -R www-data:www-data storage/ bootstrap/cache/ public/storage public/build/
+chmod -R 775 storage/ bootstrap/cache/
 
 # 7. Migrer la base de données
-php artisan migrate --force
+sudo -u www-data php artisan migrate --force
 
 # 8. Optimiser pour la production
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+sudo -u www-data php artisan config:cache
+sudo -u www-data php artisan route:cache
+sudo -u www-data php artisan view:cache
 
 # 9. Vérifications finales
-ls -la public/storage           # Doit être un lien symbolique
+ls -la public/storage           # Doit être: lrwxrwxrwx 1 www-data www-data ... -> /var/www/regiedeseaux/storage/app/public
 ls -lh public/vendor/livewire/  # Doit contenir livewire.js
-curl -I http://votre-url/storage/  # Doit retourner 200 ou 403 (pas 404)
+curl -I https://votre-domaine.test/storage/  # Doit retourner 200 ou 403 (pas 404)
 ```
+
+**💡 Notes Importantes:**
+- Remplace `votre-domaine.test` par ton URL réelle (ex: `regiedeseaux.com`)
+- L'utilisateur `www-data` est l'utilisateur par défaut de Nginx/Apache sur Debian/Ubuntu
+- Si tu es sur CentOS/RHEL, l'utilisateur peut être `nginx` ou `apache`
 
 ## Checklist de Déploiement
 
@@ -110,8 +129,38 @@ curl -I http://votre-url/storage/  # Doit retourner 200 ou 403 (pas 404)
 - [ ] Code commité avec les assets buildés
 - [ ] Push vers GitHub effectué
 - [ ] `git pull` sur le serveur
-- [ ] Caches Laravel vidés
+- [ ] Caches Laravel vidés **AVEC** `sudo -u www-data`
+- [ ] Permissions corrigées si nécessaire (`sudo chown -R www-data:www-data storage/ public/build/`)
 - [ ] Application testée en production
+
+## Aide-Mémoire pour la Production
+
+### Alias Bash (Optionnel mais Recommandé)
+
+Tu peux ajouter ces alias dans ton `~/.bashrc` pour simplifier les déploiements :
+
+```bash
+# Éditer le fichier
+nano ~/.bashrc
+
+# Ajouter ces lignes à la fin
+alias artisan-prod='sudo -u www-data php artisan'
+alias deploy-clear='sudo -u www-data php artisan config:clear && sudo -u www-data php artisan route:clear && sudo -u www-data php artisan cache:clear && sudo -u www-data php artisan view:clear'
+alias deploy-optimize='sudo -u www-data php artisan config:cache && sudo -u www-data php artisan route:cache && sudo -u www-data php artisan view:cache'
+alias deploy-fix-perms='sudo chown -R www-data:www-data storage/ bootstrap/cache/ public/storage public/build/'
+
+# Sauvegarder et recharger
+source ~/.bashrc
+```
+
+**Utilisation après `git pull` :**
+```bash
+cd /var/www/regiedeseaux
+git pull
+deploy-clear     # Vide tous les caches
+deploy-optimize  # Optionnel: optimise pour la production
+deploy-fix-perms # Si tu as ajouté des fichiers manuellement
+```
 
 ## Commandes Utiles
 
@@ -149,31 +198,50 @@ git push
 
 ## Dépannage
 
-### Erreur 403 sur les fichiers storage (ex: /storage/documents/fichier.docx)
+### Erreur 403 ou 404 sur les fichiers storage (ex: téléchargement de documents)
 
-**Symptôme:** `http://votre-serveur/storage/...` retourne 403 Forbidden
+**Symptôme:** Les téléchargements de documents génèrent une erreur 404 ou 403
 
-**Cause:** Lien symbolique `public/storage` manquant ou permissions incorrectes
+**Cause la plus fréquente:** Problème de permissions sur le lien symbolique `public/storage`
 
-**Solution:**
+**Solution complète:**
 ```bash
-# 1. Créer le lien symbolique
-php artisan storage:link
+cd /var/www/regiedeseaux
 
-# 2. Vérifier que le lien existe
+# 1. Vérifier que le lien symbolique existe
 ls -la public/storage
-# Devrait afficher: public/storage -> ../storage/app/public
+# Doit afficher: public/storage -> /var/www/regiedeseaux/storage/app/public
 
-# 3. Si le lien existe mais erreur 403, vérifier les permissions
-chmod -R 775 storage
-sudo chown -R www-data:www-data storage public/storage
+# 2. Si le lien n'existe pas, le créer
+sudo -u www-data php artisan storage:link
 
-# 4. Vérifier que le fichier existe
-ls -lh storage/app/public/2025.12/  # Exemple de chemin
+# 3. CRITIQUE: Vérifier le propriétaire du lien symbolique
+ls -la public/storage
+# Doit afficher: lrwxrwxrwx 1 www-data www-data ...
 
-# 5. Tester l'accès
-curl -I http://votre-url/storage/test.txt
+# 4. Si le propriétaire est 'administrateur', CORRIGER:
+sudo chown -h www-data:www-data public/storage
+
+# 5. Vérifier les permissions des fichiers de destination
+ls -la storage/app/public/
+ls -la storage/app/public/2026.01/  # Exemple avec documents récents
+
+# 6. Si les permissions sont incorrectes, corriger
+sudo chown -R www-data:www-data storage/app/public/
+
+# 7. Vider les caches Laravel (IMPORTANT!)
+sudo -u www-data php artisan config:clear
+sudo -u www-data php artisan route:clear
+sudo -u www-data php artisan cache:clear
+
+# 8. Vérifier que les fichiers sont accessibles
+curl -I https://votre-domaine.test/storage/test.txt
 ```
+
+**⚠️ Leçon Apprise:** 
+- Le lien symbolique `public/storage` DOIT appartenir à `www-data:www-data`
+- Même si les fichiers de destination ont les bonnes permissions, un lien symbolique avec le mauvais propriétaire peut causer des 404
+- Toujours utiliser `sudo -u www-data php artisan storage:link` lors de la création initiale
 
 ### Interface Filament cassée (champ password non masqué, pas d'interactions)
 
@@ -238,7 +306,66 @@ git push --force
 
 ## Configuration Actuelle
 
+- **Serveur:** Nginx sur Debian/Ubuntu
+- **Utilisateur web:** `www-data` (Nginx)
+- **Utilisateur SSH:** `administrateur`
+- **Chemin application:** `/var/www/regiedeseaux`
 - **Node.js local:** v25.x (ou v18.20+)
-- **Node.js serveur:** ❌ Pas requis
+- **Node.js serveur:** ❌ Pas requis (assets compilés en local)
 - **Taille assets:** ~80KB (négligeable vs 3.8MB Filament déjà commités)
-- **Déploiements:** Manuels via git pull
+- **Déploiements:** Manuels via git pull (rare)
+- **Stratégie permissions:** Toujours utiliser `sudo -u www-data` pour les commandes Artisan en production
+
+## FAQ Permissions
+
+### Pourquoi dois-je utiliser `sudo -u www-data` ?
+
+Quand tu te connectes en SSH en tant qu'`administrateur` et que tu exécutes `php artisan cache:clear`, les fichiers de cache créés appartiendront à `administrateur:administrateur`. Ensuite, quand Nginx (qui tourne sous `www-data`) essaie d'accéder à ces caches, il peut rencontrer des problèmes de permissions.
+
+**Exemple du problème:**
+```bash
+# ❌ MAUVAIS: Cache créé par 'administrateur'
+php artisan config:cache
+ls -la bootstrap/cache/config.php
+# -rw-r--r-- 1 administrateur administrateur ...
+
+# Nginx (www-data) ne peut pas toujours lire ce fichier → erreur 500
+```
+
+**Solution:**
+```bash
+# ✅ BON: Cache créé par 'www-data'
+sudo -u www-data php artisan config:cache
+ls -la bootstrap/cache/config.php
+# -rw-r--r-- 1 www-data www-data ...
+
+# Nginx peut lire le fichier sans problème ✓
+```
+
+### Que faire si j'ai déjà créé des fichiers avec 'administrateur' ?
+
+```bash
+# Corriger les permissions de tous les répertoires critiques
+cd /var/www/regiedeseaux
+sudo chown -R www-data:www-data storage/ bootstrap/cache/ public/storage public/build/
+
+# Puis vider les caches avec le bon utilisateur
+sudo -u www-data php artisan config:clear
+sudo -u www-data php artisan route:clear
+sudo -u www-data php artisan cache:clear
+```
+
+### Les alias bash fonctionnent-ils avec `sudo -u www-data` ?
+
+Oui ! Les alias définis dans ton `~/.bashrc` fonctionnent parfaitement :
+
+```bash
+# Au lieu de taper:
+sudo -u www-data php artisan config:clear
+
+# Tu peux utiliser:
+artisan-prod config:clear
+
+# Ou pour tout vider d'un coup:
+deploy-clear
+```

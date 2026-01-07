@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\Storage;
 Route::get('/admin/templates/{id}/download', function ($id) {
     $template = DocumentTemplate::findOrFail($id);
     
-    if (!Storage::exists($template->file_path)) {
+    // Utiliser le disque 'templates' et la méthode helper du modèle
+    if (!$template->fileExists()) {
         abort(404, 'Fichier template introuvable');
     }
     
-    return Storage::download(
+    // Télécharger avec un nom user-friendly
+    return Storage::disk('templates')->download(
         $template->file_path,
-        basename($template->file_path)
+        $template->name . '.docx'
     );
 })->name('templates.download')->middleware(['auth']);
 
