@@ -463,7 +463,7 @@ class RequestsTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                     BulkAction::make('generate_word_bulk')
-                        ->label('Générer Word (Lot)')
+                        ->label('Générer attestation (Lot)')
                         ->icon(Heroicon::DocumentText)
                         ->color('info')
                         ->action(fn (Collection $records) => $records->each(

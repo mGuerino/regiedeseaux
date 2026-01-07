@@ -16,7 +16,7 @@ class GenerateWordAction
     public static function make(): Action
     {
         return Action::make('generate_word')
-            ->label('Générer Word')
+            ->label('Générer attestation')
             ->icon(Heroicon::DocumentText)
             ->color('info')
             ->action(fn ($record) => self::generate($record));

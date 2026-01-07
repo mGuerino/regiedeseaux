@@ -67,7 +67,7 @@ class RequestResource extends Resource
             ->with([
                 // Relations principales affichées dans les colonnes
                 'parcels:ident,codcomm,objectid',  // Pour parcels_list column
-                'applicant:id,last_name,first_name',  // Pour applicant.last_name
+                'applicant:id,last_name,first_name,address,address2,postal_code,city,email,phone1,phone2',  // Pour applicant.last_name et génération Word
                 'municipality:code,name,code_with_division',  // Pour municipality.name
                 'contact:id,first_name,last_name',  // Pour contact.last_name
                 
