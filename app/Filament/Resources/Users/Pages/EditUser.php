@@ -16,4 +16,14 @@ class EditUser extends EditRecord
             DeleteAction::make(),
         ];
     }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        // Empêcher un admin de se retirer ses propres droits admin
+        if ($this->record->getKey() === auth()->id() && isset($data['is_admin'])) {
+            $data['is_admin'] = $this->record->is_admin;
+        }
+
+        return $data;
+    }
 }
