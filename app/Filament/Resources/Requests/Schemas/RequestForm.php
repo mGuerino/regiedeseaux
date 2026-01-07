@@ -453,6 +453,7 @@ class RequestForm
                         FileUpload::make('attachments')
                             ->label('Pièces jointes')
                             ->multiple()
+                            ->downloadable()
                             ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
                             ->disk('public')
                             ->directory(fn () => now()->format('Y.m'))
