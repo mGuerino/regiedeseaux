@@ -22,12 +22,12 @@ Route::get('/admin/templates/{id}/download', function ($id) {
 // Route pour télécharger un document de demande
 Route::get('/documents/{document}/download', function (Document $document) {
     // Vérifier que le fichier existe
-    if (!Storage::exists($document->file_name)) {
+    if (!Storage::disk('public')->exists($document->file_name)) {
         abort(404, 'Fichier introuvable');
     }
     
     // Télécharger le fichier avec le nom d'origine
-    return Storage::download(
+    return Storage::disk('public')->download(
         $document->file_name,
         $document->document_name
     );
