@@ -43,6 +43,18 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
 
     public ?array $data = [];
 
+    // TEMPORAIREMENT DÉSACTIVÉ - 11/02/2026
+    // Réactiver en passant shouldRegisterNavigation() et canAccess() à true
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    public static function canAccess(): bool
+    {
+        return false;
+    }
+
     public function getView(): string
     {
         return 'filament.pages.send-document-email';

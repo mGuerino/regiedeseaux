@@ -81,11 +81,11 @@ class Document extends Model
     public function getFileSizeFormatted(): string
     {
         try {
-            if (! Storage::exists($this->file_name)) {
+            if (! Storage::disk('public')->exists($this->file_name)) {
                 return 'N/A';
             }
 
-            $bytes = Storage::size($this->file_name);
+            $bytes = Storage::disk('public')->size($this->file_name);
             $units = ['o', 'Ko', 'Mo', 'Go'];
             $i = 0;
 
@@ -113,11 +113,11 @@ class Document extends Model
     public function getFileSizeBytes(): int
     {
         try {
-            if (! Storage::exists($this->file_name)) {
+            if (! Storage::disk('public')->exists($this->file_name)) {
                 return 0;
             }
 
-            return Storage::size($this->file_name);
+            return Storage::disk('public')->size($this->file_name);
         } catch (\Exception) {
             return 0;
         }

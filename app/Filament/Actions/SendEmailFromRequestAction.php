@@ -31,26 +31,26 @@ class SendEmailFromRequestAction
             ->mountUsing(function ($form, $record) {
                 // Pré-remplir tous les champs
                 $recipientKeys = [];
-                
+
                 // Pré-sélectionner le contact s'il a un email
                 if ($record->contact && $record->contact->email) {
-                    $recipientKeys[] = $record->contact->id . '_contact';
+                    $recipientKeys[] = $record->contact->id.'_contact';
                 }
                 // Sinon pré-sélectionner le demandeur s'il a un email
                 elseif ($record->applicant && $record->applicant->email) {
-                    $recipientKeys[] = $record->applicant->id . '_applicant';
+                    $recipientKeys[] = $record->applicant->id.'_applicant';
                 }
 
-                $applicantName = $record->applicant 
+                $applicantName = $record->applicant
                     ? "{$record->applicant->first_name} {$record->applicant->last_name}"
                     : 'N/A';
-                
+
                 $form->fill([
                     'document_ids' => $record->documents->pluck('id')->toArray(),
                     'recipient_keys' => $recipientKeys,
                     'manual_emails' => [],
                     'subject' => "Attestation {$record->reference}",
-                    'message' => "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n" . Auth::user()->name,
+                    'message' => "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n".Auth::user()->name,
                     'mark_as_completed' => false,
                     'set_response_date' => false,
                 ]);
@@ -140,7 +140,7 @@ class SendEmailFromRequestAction
                 // Vérifier que tous les fichiers existent
                 $missingFiles = [];
                 foreach ($documents as $document) {
-                    if (! Storage::exists($document->file_name)) {
+                    if (! Storage::disk('public')->exists($document->file_name)) {
                         $missingFiles[] = $document->document_name;
                     }
                 }
@@ -199,7 +199,7 @@ class SendEmailFromRequestAction
                         ));
                         $successCount++;
                     } catch (\Exception $e) {
-                        $errors[] = "Erreur pour {$email}: " . $e->getMessage();
+                        $errors[] = "Erreur pour {$email}: ".$e->getMessage();
                     }
                 }
 
@@ -258,7 +258,7 @@ class SendEmailFromRequestAction
         // Demandeur de cette demande
         if ($record->applicant && $record->applicant->email) {
             $options['Demandeur'] = [
-                $record->applicant->id . '_applicant' => sprintf(
+                $record->applicant->id.'_applicant' => sprintf(
                     '%s %s (%s)',
                     $record->applicant->first_name,
                     $record->applicant->last_name,
@@ -270,7 +270,7 @@ class SendEmailFromRequestAction
         // Contact de cette demande
         if ($record->contact && $record->contact->email) {
             $options['Contact'] = [
-                $record->contact->id . '_contact' => sprintf(
+                $record->contact->id.'_contact' => sprintf(
                     '%s %s (%s)',
                     $record->contact->first_name,
                     $record->contact->last_name,
@@ -282,7 +282,7 @@ class SendEmailFromRequestAction
         // Autres contacts disponibles (en cas de besoin)
         $otherContacts = Contact::whereNotNull('email')
             ->where('email', '!=', '')
-            ->when($record->contact_id, fn($q) => $q->where('id', '!=', $record->contact_id))
+            ->when($record->contact_id, fn ($q) => $q->where('id', '!=', $record->contact_id))
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->limit(20)
@@ -291,7 +291,7 @@ class SendEmailFromRequestAction
         if ($otherContacts->isNotEmpty()) {
             $contactOptions = [];
             foreach ($otherContacts as $contact) {
-                $contactOptions[$contact->id . '_contact'] = sprintf(
+                $contactOptions[$contact->id.'_contact'] = sprintf(
                     '%s %s (%s)',
                     $contact->first_name,
                     $contact->last_name,
@@ -311,7 +311,7 @@ class SendEmailFromRequestAction
         if ($agents->isNotEmpty()) {
             $agentOptions = [];
             foreach ($agents as $agent) {
-                $agentOptions[$agent->id . '_agent'] = sprintf(
+                $agentOptions[$agent->id.'_agent'] = sprintf(
                     '%s (%s)',
                     $agent->name,
                     $agent->email

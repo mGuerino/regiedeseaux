@@ -35,18 +35,30 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
     protected static ?int $navigationSort = 99;
 
     public ?array $dataArchive = [];
-    
+
     public ?array $dataUnarchive = [];
 
     public ?int $previewCountArchive = null;
 
     public ?array $previewReferencesArchive = null;
-    
+
     public ?int $previewCountUnarchive = null;
 
     public ?array $previewReferencesUnarchive = null;
-    
+
     public string $activeTab = 'archive';
+
+    // TEMPORAIREMENT DÉSACTIVÉ - 11/02/2026
+    // Réactiver en passant shouldRegisterNavigation() et canAccess() à true
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    public static function canAccess(): bool
+    {
+        return false;
+    }
 
     public function getView(): string
     {
@@ -60,7 +72,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
             'before_date' => now()->subYear()->format('Y-m-d'),
             'request_status' => 2, // Terminée par défaut
         ]);
-        
+
         $this->formUnarchive->fill([
             'after_date' => now()->subMonths(3)->format('Y-m-d'),
         ]);
@@ -130,7 +142,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
             ])
             ->statePath('dataArchive');
     }
-    
+
     public function formUnarchive(Schema $schema): Schema
     {
         return $schema
@@ -186,7 +198,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
 
         return $content;
     }
-    
+
     protected function getPreviewContentUnarchive(): string
     {
         if ($this->previewCountUnarchive === 0) {
@@ -235,7 +247,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
                 ->visible(fn () => $this->activeTab === 'archive')
                 ->requiresConfirmation()
                 ->modalHeading('Confirmer l\'archivage en lot')
-                ->modalDescription(fn () => $this->previewCountArchive 
+                ->modalDescription(fn () => $this->previewCountArchive
                     ? "Vous êtes sur le point d'archiver {$this->previewCountArchive} demande(s). Cette action peut être annulée manuellement pour chaque demande."
                     : "Veuillez d'abord cliquer sur 'Aperçu' pour voir combien de demandes seront archivées."
                 )
@@ -260,7 +272,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
                     $this->previewCountArchive = null;
                     $this->previewReferencesArchive = null;
                 }),
-                
+
             // Actions de désarchivage
             Action::make('previewUnarchive')
                 ->label('Aperçu')
@@ -290,7 +302,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
                 ->visible(fn () => $this->activeTab === 'unarchive')
                 ->requiresConfirmation()
                 ->modalHeading('Confirmer le désarchivage en lot')
-                ->modalDescription(fn () => $this->previewCountUnarchive 
+                ->modalDescription(fn () => $this->previewCountUnarchive
                     ? "Vous êtes sur le point de désarchiver {$this->previewCountUnarchive} demande(s). Ces demandes redeviendront visibles dans la liste principale."
                     : "Veuillez d'abord cliquer sur 'Aperçu' pour voir combien de demandes seront désarchivées."
                 )
@@ -338,13 +350,13 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
         }
 
         // Filtre par commune (optionnel)
-        if (!empty($data['municipality_code'])) {
+        if (! empty($data['municipality_code'])) {
             $query->where('municipality_code', $data['municipality_code']);
         }
 
         return $query;
     }
-    
+
     protected function buildUnarchiveQuery(array $data): \Illuminate\Database\Eloquent\Builder
     {
         $query = Request::onlyArchived(); // Seulement les demandes archivées
@@ -358,7 +370,7 @@ class ArchiveRequests extends Page implements HasActions, HasSchemas
         }
 
         // Filtre par commune (optionnel)
-        if (!empty($data['municipality_code'])) {
+        if (! empty($data['municipality_code'])) {
             $query->where('municipality_code', $data['municipality_code']);
         }
 
