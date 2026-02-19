@@ -94,8 +94,8 @@ class RequestsTable
                     ->searchable()
                     ->sortable()
                     ->weight(FontWeight::Bold)
-                    ->description(fn ($record) => $record->parcels->isEmpty() 
-                        ? null 
+                    ->description(fn ($record) => $record->parcels->isEmpty()
+                        ? null
                         : new HtmlString(view('filament.components.parcels-badges', ['parcels' => $record->parcels])->render())
                     )
                     ->grow(),
@@ -105,8 +105,8 @@ class RequestsTable
                     ->label('Demandeur')
                     ->icon(Heroicon::User)
                     ->searchable(['last_name', 'first_name'])
-                    ->formatStateUsing(fn ($record) => $record->applicant 
-                        ? "{$record->applicant->last_name} {$record->applicant->first_name}" 
+                    ->formatStateUsing(fn ($record) => $record->applicant
+                        ? "{$record->applicant->last_name} {$record->applicant->first_name}"
                         : '-')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -132,8 +132,8 @@ class RequestsTable
                     ->label('Contact')
                     ->icon(Heroicon::AtSymbol)
                     ->searchable(['first_name', 'last_name', 'email'])
-                    ->formatStateUsing(fn ($record) => $record->contact 
-                        ? "{$record->contact->first_name} {$record->contact->last_name}" 
+                    ->formatStateUsing(fn ($record) => $record->contact
+                        ? "{$record->contact->first_name} {$record->contact->last_name}"
                         : '-')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -143,8 +143,8 @@ class RequestsTable
                     ->label('Suivi par')
                     ->icon(Heroicon::UserCircle)
                     ->searchable(['name', 'first_name'])
-                    ->formatStateUsing(fn ($record) => $record->followedByUser 
-                        ? ($record->followedByUser->first_name 
+                    ->formatStateUsing(fn ($record) => $record->followedByUser
+                        ? ($record->followedByUser->first_name
                             ? "{$record->followedByUser->first_name} {$record->followedByUser->name}"
                             : $record->followedByUser->name)
                         : '-'
@@ -244,15 +244,15 @@ class RequestsTable
                     })
                     ->indicateUsing(function (array $data): array {
                         $indicators = [];
-                        
+
                         if ($data['request_from'] ?? null) {
-                            $indicators[] = 'Demande à partir du ' . Carbon::parse($data['request_from'])->format('d/m/Y');
+                            $indicators[] = 'Demande à partir du '.Carbon::parse($data['request_from'])->format('d/m/Y');
                         }
-                        
+
                         if ($data['request_until'] ?? null) {
-                            $indicators[] = 'Demande jusqu\'au ' . Carbon::parse($data['request_until'])->format('d/m/Y');
+                            $indicators[] = 'Demande jusqu\'au '.Carbon::parse($data['request_until'])->format('d/m/Y');
                         }
-                        
+
                         return $indicators;
                     }),
 
@@ -284,15 +284,15 @@ class RequestsTable
                     })
                     ->indicateUsing(function (array $data): array {
                         $indicators = [];
-                        
+
                         if ($data['response_from'] ?? null) {
-                            $indicators[] = 'Réponse à partir du ' . Carbon::parse($data['response_from'])->format('d/m/Y');
+                            $indicators[] = 'Réponse à partir du '.Carbon::parse($data['response_from'])->format('d/m/Y');
                         }
-                        
+
                         if ($data['response_until'] ?? null) {
-                            $indicators[] = 'Réponse jusqu\'au ' . Carbon::parse($data['response_until'])->format('d/m/Y');
+                            $indicators[] = 'Réponse jusqu\'au '.Carbon::parse($data['response_until'])->format('d/m/Y');
                         }
-                        
+
                         return $indicators;
                     }),
 
@@ -316,7 +316,7 @@ class RequestsTable
 
                 // Filtre AEP
                 SelectFilter::make('water_status')
-                    ->label('Connectable AEP')
+                    ->label('Raccordable AEP')
                     ->options([
                         true => 'Oui',
                         false => 'Non',
@@ -325,7 +325,7 @@ class RequestsTable
 
                 // Filtre EU
                 SelectFilter::make('wastewater_status')
-                    ->label('Connectable EU')
+                    ->label('Raccordable EU')
                     ->options([
                         true => 'Oui',
                         false => 'Non',
@@ -356,7 +356,7 @@ class RequestsTable
                 SelectFilter::make('followed_by_user_id')
                     ->label('Suivi par')
                     ->relationship('followedByUser', 'name')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->first_name 
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->first_name
                         ? "{$record->first_name} {$record->name}"
                         : $record->name
                     )
@@ -440,19 +440,19 @@ class RequestsTable
                     ->color(fn ($record) => $record->is_archived ? 'success' : 'gray')
                     ->requiresConfirmation()
                     ->modalHeading(fn ($record) => $record->is_archived ? 'Désarchiver cette demande ?' : 'Archiver cette demande ?')
-                    ->modalDescription(fn ($record) => $record->is_archived 
+                    ->modalDescription(fn ($record) => $record->is_archived
                         ? 'Cette demande redeviendra visible dans la liste principale.'
                         : 'Cette demande sera masquée de la liste principale. Vous pourrez la retrouver en activant le filtre "Archivées".'
                     )
                     ->action(function ($record) {
-                        $isArchiving = !$record->is_archived;
-                        
+                        $isArchiving = ! $record->is_archived;
+
                         $record->update([
                             'is_archived' => $isArchiving,
                             'archived_at' => $isArchiving ? now() : null,
                             'archived_by' => $isArchiving ? Auth::user()->name : null,
                         ]);
-                        
+
                         Notification::make()
                             ->title($record->is_archived ? 'Demande archivée' : 'Demande désarchivée')
                             ->success()

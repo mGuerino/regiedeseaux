@@ -80,12 +80,13 @@ class DocumentTemplate extends Model
      */
     public function extractVariables(): array
     {
-        if (!file_exists($this->getFullPath())) {
+        if (! file_exists($this->getFullPath())) {
             return [];
         }
 
         try {
             $templateProcessor = new TemplateProcessor($this->getFullPath());
+
             return $templateProcessor->getVariables();
         } catch (\Exception) {
             return [];
@@ -157,6 +158,7 @@ class DocumentTemplate extends Model
                 'followedByUser.first_name' => 'Prénom',
                 'followedByUser.full_name' => 'Nom complet',
                 'followedByUser.email' => 'Email',
+                'followedByUser.phone' => 'Téléphone',
             ],
             'Parcelles et Rues' => [
                 'parcelles' => 'Liste des parcelles (séparées par virgule)',
@@ -176,6 +178,7 @@ class DocumentTemplate extends Model
                 $flat[$key] = "[$group] $label";
             }
         }
+
         return $flat;
     }
 
@@ -203,6 +206,8 @@ class DocumentTemplate extends Model
             'certifier.fonction' => 'certifier.title',
             'observations' => 'observations',
             'utilisateur.nom' => 'followedByUser.full_name',
+            'followedByUser.email' => 'followedByUser.email',
+            'followedByUser.phone' => 'followedByUser.phone',
             'parcelles' => 'parcelles',
             'demande.adresse' => 'demande.adresse',
         ];
@@ -220,7 +225,7 @@ class DocumentTemplate extends Model
         $unmapped = [];
 
         foreach ($this->variables ?? [] as $variable) {
-            if (!isset($allMappings[$variable])) {
+            if (! isset($allMappings[$variable])) {
                 $unmapped[] = $variable;
             }
         }
@@ -241,6 +246,7 @@ class DocumentTemplate extends Model
             'signataire.nom', 'signataire.fonction',
             'certifier.nom', 'certifier.fonction',
             'observations', 'utilisateur.nom',
+            'followedByUser.email', 'followedByUser.phone',
             'parcelles', 'demande.adresse',
         ];
 
@@ -284,7 +290,7 @@ class DocumentTemplate extends Model
         $total = self::count();
         $active = self::where('is_active', true)->count();
         $default = self::where('is_default', true)->first();
-        $withUnmapped = self::all()->filter(fn($t) => $t->hasUnmappedVariables())->count();
+        $withUnmapped = self::all()->filter(fn ($t) => $t->hasUnmappedVariables())->count();
 
         return [
             'total' => $total,

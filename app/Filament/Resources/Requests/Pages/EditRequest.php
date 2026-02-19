@@ -21,6 +21,7 @@ class EditRequest extends EditRecord
         return [
             SendEmailFromRequestAction::make(),
             GenerateWordAction::make(),
+            GenerateWordAction::makeWithDownload(),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),

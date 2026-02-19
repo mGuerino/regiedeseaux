@@ -28,25 +28,26 @@ class RequestForm
             ->options(function (callable $get) use ($type, $field) {
                 // Récupérer l'ID de l'agent actuellement assigné
                 $currentAgentId = $get($field);
-                
+
                 // Agents actifs du type demandé
                 $agents = Agent::where('type', $type)
                     ->where('is_active', true)
                     ->get();
-                
+
                 // Si un agent est assigné mais inactif, l'ajouter aux options
                 if ($currentAgentId) {
                     $currentAgent = Agent::find($currentAgentId);
-                    if ($currentAgent && !$currentAgent->is_active) {
+                    if ($currentAgent && ! $currentAgent->is_active) {
                         $agents->push($currentAgent);
                     }
                 }
-                
+
                 return $agents->mapWithKeys(function ($agent) {
                     $label = $agent->name;
-                    if (!$agent->is_active) {
+                    if (! $agent->is_active) {
                         $label .= ' (Inactif)';
                     }
+
                     return [$agent->id => $label];
                 });
             })
@@ -152,13 +153,13 @@ class RequestForm
 
                                 Select::make('followed_by_user_id')
                                     ->label('Demande suivie par')
-                                    ->options(fn() => User::query()
+                                    ->options(fn () => User::query()
                                         ->orderBy('name')
                                         ->get()
-                                        ->mapWithKeys(fn($user) => [
-                                            $user->id => $user->first_name 
-                                                ? "{$user->first_name} {$user->name}" 
-                                                : $user->name
+                                        ->mapWithKeys(fn ($user) => [
+                                            $user->id => $user->first_name
+                                                ? "{$user->first_name} {$user->name}"
+                                                : $user->name,
                                         ])
                                     )
                                     ->default(Auth::id())
@@ -251,7 +252,7 @@ class RequestForm
                                 // Récupérer la section et la commune depuis les données du formulaire Livewire
                                 $section = data_get($livewire, 'data.section', '??');
                                 $municipalityCode = data_get($livewire, 'data.municipality_code');
-                                
+
                                 return [
                                     TextInput::make('dnupla')
                                         ->label('Numéro de parcelle')
@@ -267,41 +268,41 @@ class RequestForm
                                         ->afterStateUpdated(function (callable $set, $state) use ($section) {
                                             if ($state) {
                                                 $formatted = str_pad($state, 4, '0', STR_PAD_LEFT);
-                                                $set('parcel_preview', $section . ' ' . $formatted);
+                                                $set('parcel_preview', $section.' '.$formatted);
                                             }
                                         })
                                         ->rules([
                                             function () use ($section, $municipalityCode) {
                                                 return function (string $attribute, $value, \Closure $fail) use ($section, $municipalityCode) {
-                                                    if (!$municipalityCode || !$section) {
+                                                    if (! $municipalityCode || ! $section) {
                                                         return;
                                                     }
-                                                    
+
                                                     $municipality = \App\Models\Municipality::find($municipalityCode);
-                                                    if (!$municipality) {
+                                                    if (! $municipality) {
                                                         return;
                                                     }
-                                                    
+
                                                     $dnupla = str_pad($value, 4, '0', STR_PAD_LEFT);
-                                                    $ident = $section . $dnupla;
+                                                    $ident = $section.$dnupla;
                                                     $codcomm = $municipality->code_with_division;
-                                                    
+
                                                     $exists = Parcel::where('ident', $ident)
                                                         ->where('codcomm', $codcomm)
                                                         ->exists();
-                                                    
+
                                                     if ($exists) {
                                                         $fail("La parcelle {$ident} existe déjà pour cette commune.");
                                                     }
                                                 };
                                             },
                                         ]),
-                                    
+
                                     TextInput::make('parcel_preview')
                                         ->label('Aperçu de la parcelle')
                                         ->disabled()
                                         ->dehydrated(false)
-                                        ->default($section . ' 0001')
+                                        ->default($section.' 0001')
                                         ->hint('Identifiant final de la parcelle')
                                         ->extraAttributes(['class' => 'font-mono text-lg font-bold text-primary-600']),
                                 ];
@@ -323,9 +324,9 @@ class RequestForm
                                 // Génération automatique des champs
                                 $dnuplaNumber = (int) $data['dnupla'];
                                 $dnupla = str_pad($dnuplaNumber, 4, '0', STR_PAD_LEFT); // Format: 0001
-                                $ident = $section . $dnupla; // Ex: AB0001
+                                $ident = $section.$dnupla; // Ex: AB0001
                                 $codcomm = $municipality->code_with_division;
-                                $codeident = str_pad($codcomm, 9, ' ', STR_PAD_RIGHT) . $ident;
+                                $codeident = str_pad($codcomm, 9, ' ', STR_PAD_RIGHT).$ident;
                                 $parcelle = $dnuplaNumber;
 
                                 // La validation de l'unicité est déjà gérée par les rules du formulaire
@@ -389,7 +390,7 @@ class RequestForm
                             ])
                             ->createOptionUsing(function (array $data, callable $get) {
                                 $municipalityCode = $get('municipality_code');
-                                
+
                                 $road = Road::create([
                                     'CDRURU' => $data['CDRURU'],
                                     'name' => $data['name'],
@@ -417,12 +418,12 @@ class RequestForm
                                     ->columnSpan(1),
 
                                 Toggle::make('water_status')
-                                    ->label('Connectable AEP')
+                                    ->label('Raccordable AEP')
                                     ->inline(false)
                                     ->columnSpan(1),
 
                                 Toggle::make('wastewater_status')
-                                    ->label('Connectable EU')
+                                    ->label('Raccordable EU')
                                     ->inline(false)
                                     ->columnSpan(1),
                             ]),

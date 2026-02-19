@@ -37,6 +37,11 @@ class UsersTable
                     ->label('Email')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('phone')
+                    ->label('Téléphone')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
                 IconColumn::make('is_admin')
                     ->label('Admin')
                     ->boolean()

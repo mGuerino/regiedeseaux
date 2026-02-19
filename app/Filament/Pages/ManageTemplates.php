@@ -6,7 +6,6 @@ use App\Enums\NavigationGroup;
 use App\Filament\Widgets\TemplateStatsWidget;
 use App\Models\DocumentTemplate;
 use Filament\Actions\Action;
-use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -20,18 +19,17 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Grid;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Grid;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpWord\TemplateProcessor;
 
@@ -92,6 +90,7 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                     ->label('Variables')
                     ->formatStateUsing(function ($record) {
                         $stats = $record->getVariableStats();
+
                         return view('filament.components.template-variables-badges', array_merge($stats, ['record' => $record]));
                     })
                     ->html(),
@@ -136,9 +135,21 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                             } catch (\Exception) {
                                 $data['variables'] = [];
                             }
+                        } else {
+                            // Pas de nouveau fichier — ré-extraire les variables depuis le fichier existant
+                            $fullPath = $record->getFullPath();
+                            if ($fullPath && file_exists($fullPath)) {
+                                try {
+                                    $templateProcessor = new TemplateProcessor($fullPath);
+                                    $data['variables'] = $templateProcessor->getVariables();
+                                } catch (\Exception) {
+                                    // Conserver les variables existantes en cas d'erreur
+                                }
+                            }
                         }
 
                         unset($data['file']);
+
                         return $data;
                     })
                     ->after(function ($record, array $data) {
@@ -219,7 +230,7 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                     })
                     ->action(function ($record, array $data) {
                         // Si pas de variables non mappées, pas d'action
-                        if (!$record->hasUnmappedVariables()) {
+                        if (! $record->hasUnmappedVariables()) {
                             return;
                         }
 
@@ -228,9 +239,9 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                         foreach ($data['mappings'] ?? [] as $mapping) {
                             $variable = $mapping['variable'];
 
-                            if (!empty($mapping['fixed_value'])) {
+                            if (! empty($mapping['fixed_value'])) {
                                 $newMappings[$variable] = "__FIXED__:{$mapping['fixed_value']}";
-                            } elseif (!empty($mapping['field'])) {
+                            } elseif (! empty($mapping['field'])) {
                                 $newMappings[$variable] = $mapping['field'];
                             }
                         }
@@ -243,7 +254,7 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                             ->send();
                     })
                     ->modalSubmitActionLabel(fn ($record) => $record->hasUnmappedVariables() ? 'Enregistrer le mapping' : 'Fermer')
-                    ->modalCancelAction(fn ($record) => !$record->hasUnmappedVariables() ? false : null),
+                    ->modalCancelAction(fn ($record) => ! $record->hasUnmappedVariables() ? false : null),
 
                 Action::make('download')
                     ->label('Télécharger')
@@ -256,7 +267,7 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                     ->label('Définir par défaut')
                     ->icon(Heroicon::Star)
                     ->color('success')
-                    ->visible(fn ($record) => !$record->is_default)
+                    ->visible(fn ($record) => ! $record->is_default)
                     ->requiresConfirmation()
                     ->modalHeading('Définir comme template par défaut')
                     ->modalDescription('Ce template sera utilisé par défaut pour générer les attestations.')
@@ -311,16 +322,16 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                 ->rows(3)
                 ->placeholder('Description optionnelle du template'),
 
-                    FileUpload::make('file')
-                        ->label('Fichier Word (.docx ou .doc)')
-                        ->acceptedFileTypes([
-                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-                            'application/msword', // .doc
-                        ])
-                        ->maxSize(5120)
-                        ->disk(DocumentTemplate::DISK)
-                        ->visibility('private')
-                        ->helperText('Uploadez un nouveau fichier pour remplacer l\'ancien'),
+            FileUpload::make('file')
+                ->label('Fichier Word (.docx ou .doc)')
+                ->acceptedFileTypes([
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+                    'application/msword', // .doc
+                ])
+                ->maxSize(5120)
+                ->disk(DocumentTemplate::DISK)
+                ->visibility('private')
+                ->helperText('Uploadez un nouveau fichier pour remplacer l\'ancien'),
 
             Checkbox::make('is_active')
                 ->label('Template actif')
@@ -370,7 +381,7 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                         ->visibility('private')
                         ->rules([
                             fn () => function ($attribute, $value, $fail) {
-                                if (!$value) {
+                                if (! $value) {
                                     return;
                                 }
 
@@ -383,8 +394,9 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
                                     }
 
                                     // Vérifier que le fichier existe
-                                    if (!file_exists($path)) {
+                                    if (! file_exists($path)) {
                                         $fail('Le fichier est introuvable.');
+
                                         return;
                                     }
 
@@ -448,7 +460,7 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
 
                     Notification::make()
                         ->title('Template créé')
-                        ->body(count($variables) . ' variable(s) détectée(s).')
+                        ->body(count($variables).' variable(s) détectée(s).')
                         ->success()
                         ->send();
 

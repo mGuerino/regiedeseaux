@@ -39,6 +39,12 @@ class UserForm
                                     ->unique(ignoreRecord: true)
                                     ->columnSpan(1),
 
+                                TextInput::make('phone')
+                                    ->label('Téléphone')
+                                    ->tel()
+                                    ->maxLength(20)
+                                    ->columnSpan(1),
+
                                 FileUpload::make('profile_photo_path')
                                     ->label('Photo de profil')
                                     ->image()
