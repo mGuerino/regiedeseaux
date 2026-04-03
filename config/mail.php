@@ -115,4 +115,9 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    'reply_to' => [
+        'address' => 'noreply@eauxdupaysdaix.fr',
+        'name' => env('MAIL_FROM_NAME', 'Régie des Eaux'),
+    ],
+
 ];

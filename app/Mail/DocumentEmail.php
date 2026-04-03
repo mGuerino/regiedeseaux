@@ -25,6 +25,12 @@ class DocumentEmail extends Mailable
     {
         return new Envelope(
             subject: $this->emailSubject,
+            replyTo: [
+                new Address(
+                    config('mail.reply_to.address'),
+                    config('mail.reply_to.name'),
+                ),
+            ],
         );
     }
 
