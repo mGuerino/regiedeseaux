@@ -185,10 +185,11 @@ class RequestForm
                     ]),
 
                 Section::make('Parcelles')
-                    ->description('Sélectionnez une section puis une ou plusieurs parcelles')
+                    ->description('Sélectionnez une ou plusieurs sections puis une ou plusieurs parcelles')
                     ->schema([
                         Select::make('section')
-                            ->label('Section')
+                            ->label('Section(s)')
+                            ->multiple()
                             ->searchable()
                             ->preload()
                             ->options(function (callable $get) {
@@ -221,7 +222,7 @@ class RequestForm
                             ->preload()
                             ->options(function (callable $get) {
                                 $municipalityCode = $get('municipality_code');
-                                $section = $get('section');
+                                $sections = $get('section');
 
                                 if (! $municipalityCode) {
                                     return [];
@@ -235,8 +236,8 @@ class RequestForm
 
                                 $query = Parcel::where('codcomm', $municipality->code_with_division);
 
-                                if ($section) {
-                                    $query->where('ccosec', $section);
+                                if (! empty($sections)) {
+                                    $query->whereIn('ccosec', (array) $sections);
                                 }
 
                                 return $query->orderBy('ident')
@@ -245,9 +246,9 @@ class RequestForm
                             ->native(false)
                             ->required()
                             ->disabled(fn (callable $get) => ! $get('municipality_code'))
-                            ->helperText(fn (callable $get) => $get('section')
-                                ? 'Parcelles de la section sélectionnée'
-                                : 'Sélectionnez une section pour filtrer les parcelles')
+                            ->helperText(fn (callable $get) => ! empty($get('section'))
+                                ? 'Parcelles des sections sélectionnées'
+                                : 'Sélectionnez une ou plusieurs sections pour filtrer les parcelles')
                             ->createOptionForm(function ($livewire) {
                                 // Récupérer la section et la commune depuis les données du formulaire Livewire
                                 $section = data_get($livewire, 'data.section', '??');
