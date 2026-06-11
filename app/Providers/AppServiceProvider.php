@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
+use PhpOffice\PhpWord\Settings as PhpWordSettings;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,6 +21,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // PHPWord n'échappe pas les valeurs injectées dans les templates par défaut :
+        // un "&" ou "<" dans une donnée produit un docx au XML invalide, illisible par Word
+        PhpWordSettings::setOutputEscapingEnabled(true);
+
         // Enregistrer les widgets Filament utilisés uniquement dans des pages spécifiques
         // (pas sur le Dashboard principal)
         Livewire::component(
