@@ -265,11 +265,23 @@ class RequestForm
                                 ? 'Parcelles des sections sélectionnées'
                                 : 'Sélectionnez une ou plusieurs sections pour filtrer les parcelles')
                             ->createOptionForm(function ($livewire) {
-                                // Récupérer la section et la commune depuis les données du formulaire Livewire
-                                $section = data_get($livewire, 'data.section', '??');
                                 $municipalityCode = data_get($livewire, 'data.municipality_code');
+                                $selectedSections = array_values(array_filter((array) data_get($livewire, 'data.section', [])));
+                                $defaultSection = count($selectedSections) === 1 ? $selectedSections[0] : null;
 
                                 return [
+                                    Select::make('section')
+                                        ->label('Section')
+                                        ->options(array_combine($selectedSections, $selectedSections))
+                                        ->default($defaultSection)
+                                        ->required()
+                                        ->native(false)
+                                        ->live()
+                                        ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                                            $formatted = str_pad((string) ($get('dnupla') ?: 1), 4, '0', STR_PAD_LEFT);
+                                            $set('parcel_preview', ($state ?: '??').' '.$formatted);
+                                        }),
+
                                     TextInput::make('dnupla')
                                         ->label('Numéro de parcelle')
                                         ->required()
@@ -281,15 +293,17 @@ class RequestForm
                                         ->extraInputAttributes(['type' => 'number'])
                                         ->helperText('Utilisez les flèches pour incrémenter/décrémenter')
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function (callable $set, $state) use ($section) {
+                                        ->afterStateUpdated(function (callable $set, callable $get, $state) {
                                             if ($state) {
                                                 $formatted = str_pad($state, 4, '0', STR_PAD_LEFT);
-                                                $set('parcel_preview', $section.' '.$formatted);
+                                                $set('parcel_preview', ($get('section') ?: '??').' '.$formatted);
                                             }
                                         })
                                         ->rules([
-                                            function () use ($section, $municipalityCode) {
-                                                return function (string $attribute, $value, \Closure $fail) use ($section, $municipalityCode) {
+                                            function (callable $get) use ($municipalityCode) {
+                                                return function (string $attribute, $value, \Closure $fail) use ($get, $municipalityCode) {
+                                                    $section = $get('section');
+
                                                     if (! $municipalityCode || ! $section) {
                                                         return;
                                                     }
@@ -318,14 +332,14 @@ class RequestForm
                                         ->label('Aperçu de la parcelle')
                                         ->disabled()
                                         ->dehydrated(false)
-                                        ->default($section.' 0001')
+                                        ->default(($defaultSection ?? '??').' 0001')
                                         ->hint('Identifiant final de la parcelle')
                                         ->extraAttributes(['class' => 'font-mono text-lg font-bold text-primary-600']),
                                 ];
                             })
                             ->createOptionUsing(function (array $data, callable $get) {
                                 $municipalityCode = $get('municipality_code');
-                                $section = $get('section');
+                                $section = $data['section'] ?? null;
 
                                 if (! $municipalityCode || ! $section) {
                                     throw new \Exception('Veuillez sélectionner une commune et une section avant de créer une parcelle.');
@@ -337,34 +351,7 @@ class RequestForm
                                     throw new \Exception('Commune introuvable.');
                                 }
 
-                                // Génération automatique des champs
-                                $dnuplaNumber = (int) $data['dnupla'];
-                                $dnupla = str_pad($dnuplaNumber, 4, '0', STR_PAD_LEFT); // Format: 0001
-                                $ident = $section.$dnupla; // Ex: AB0001
-                                $codcomm = $municipality->code_with_division;
-                                $codeident = str_pad($codcomm, 9, ' ', STR_PAD_RIGHT).$ident;
-                                $parcelle = $dnuplaNumber;
-
-                                // La validation de l'unicité est déjà gérée par les rules du formulaire
-                                // Créer la parcelle
-                                $parcel = Parcel::create([
-                                    'dnupla' => $dnupla,
-                                    'ccosec' => $section,
-                                    'sect_cad' => $section,
-                                    'codcomm' => $codcomm,
-                                    'ident' => $ident,
-                                    'codeident' => $codeident,
-                                    'parcelle' => $parcelle,
-                                    'ccocomm' => 0,
-                                    'ccodep' => (int) substr($codcomm, 0, 2),
-                                    'ccodir' => 0,
-                                    'ccoifp' => 0,
-                                    'ccopre' => '',
-                                    'ccovoi' => '',
-                                    'cprsecr' => '',
-                                ]);
-
-                                return $parcel->ident;
+                                return Parcel::createFromCadastre($municipality, $section, (int) $data['dnupla'])->ident;
                             }),
                     ]),
 
