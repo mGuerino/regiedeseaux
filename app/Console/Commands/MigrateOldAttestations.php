@@ -30,7 +30,7 @@ class MigrateOldAttestations extends Command
     public function handle()
     {
         $isDryRun = $this->option('dry-run');
-        
+
         if ($isDryRun) {
             $this->info('🔍 MODE TEST - Aucune modification ne sera effectuée');
             $this->newLine();
@@ -38,14 +38,15 @@ class MigrateOldAttestations extends Command
 
         // Rechercher tous les fichiers attestation_*.docx dans public/
         $publicPath = public_path();
-        $attestationFiles = File::glob($publicPath . '/attestation_*.docx');
-        
+        $attestationFiles = File::glob($publicPath.'/attestation_*.docx');
+
         if (empty($attestationFiles)) {
             $this->info('✅ Aucune ancienne attestation trouvée dans le dossier public/');
+
             return Command::SUCCESS;
         }
 
-        $this->info('📄 ' . count($attestationFiles) . ' attestation(s) trouvée(s) dans public/');
+        $this->info('📄 '.count($attestationFiles).' attestation(s) trouvée(s) dans public/');
         $this->newLine();
 
         $migratedCount = 0;
@@ -54,24 +55,26 @@ class MigrateOldAttestations extends Command
 
         foreach ($attestationFiles as $filePath) {
             $fileName = basename($filePath);
-            
+
             // Extraire l'ID de la demande depuis le nom du fichier
             preg_match('/attestation_(\d+)\.docx/', $fileName, $matches);
-            
-            if (!isset($matches[1])) {
+
+            if (! isset($matches[1])) {
                 $this->warn("⚠️  Impossible d'extraire l'ID de: {$fileName}");
                 $skippedCount++;
+
                 continue;
             }
 
             $requestId = $matches[1];
-            
+
             // Vérifier que la demande existe (même si soft deleted)
             $request = Request::withTrashed()->find($requestId);
-            
-            if (!$request) {
+
+            if (! $request) {
                 $this->warn("⚠️  Demande #{$requestId} introuvable - Fichier: {$fileName}");
                 $skippedCount++;
+
                 continue;
             }
 
@@ -82,7 +85,7 @@ class MigrateOldAttestations extends Command
 
             $this->line("📋 Migration de: {$fileName} → storage/app/public/{$relativePath}");
 
-            if (!$isDryRun) {
+            if (! $isDryRun) {
                 try {
                     // Copier le fichier vers storage/app/public/{ANNÉE.MOIS}/
                     Storage::disk('public')->putFileAs(
@@ -96,7 +99,7 @@ class MigrateOldAttestations extends Command
                         'request_id' => $requestId,
                         'document_type' => 'generated',
                         'file_name' => $relativePath,
-                        'document_name' => "Attestation - {$request->reference}.docx",
+                        'document_name' => Document::sanitizeFileName("Attestation - {$request->reference}.docx"),
                         'created_by' => 'System Migration',
                         'created_date' => date('Y-m-d', $fileDate),
                     ]);
@@ -104,7 +107,7 @@ class MigrateOldAttestations extends Command
                     // Supprimer l'ancien fichier de public/
                     File::delete($filePath);
 
-                    $this->info("   ✅ Migré avec succès");
+                    $this->info('   ✅ Migré avec succès');
                     $migratedCount++;
                 } catch (\Exception $e) {
                     $this->error("   ❌ Erreur: {$e->getMessage()}");
@@ -119,11 +122,11 @@ class MigrateOldAttestations extends Command
         $this->newLine();
         $this->info('📊 Résumé de la migration:');
         $this->line("   - Migrés: {$migratedCount}");
-        
+
         if ($skippedCount > 0) {
             $this->line("   - Ignorés: {$skippedCount}");
         }
-        
+
         if ($errorCount > 0) {
             $this->line("   - Erreurs: {$errorCount}");
         }

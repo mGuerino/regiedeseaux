@@ -36,6 +36,15 @@ class Document extends Model
     }
 
     /**
+     * Nettoyer un nom de fichier destiné au téléchargement : les caractères
+     * "/" et "\" sont interdits par Symfony dans les noms de fichiers téléchargés
+     */
+    public static function sanitizeFileName(string $name): string
+    {
+        return str_replace(['/', '\\'], '-', $name);
+    }
+
+    /**
      * Obtenir l'extension du fichier
      */
     public function getFileExtension(): string

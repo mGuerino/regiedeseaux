@@ -49,7 +49,7 @@ class GenerateWordAction
                 }
 
                 // Télécharger le fichier
-                return response()->download($filePath, $document->document_name);
+                return response()->download($filePath, Document::sanitizeFileName($document->document_name));
             });
     }
 
@@ -126,7 +126,7 @@ class GenerateWordAction
         // Mettre à jour le document existant ou créer un nouveau
         if ($existingDocument) {
             $existingDocument->update([
-                'document_name' => "Attestation - {$record->reference}.docx",
+                'document_name' => Document::sanitizeFileName("Attestation - {$record->reference}.docx"),
                 'created_by' => Auth::user()->name,
                 'created_date' => now(),
             ]);
@@ -138,7 +138,7 @@ class GenerateWordAction
                 'request_id' => $record->id,
                 'document_type' => 'generated',
                 'file_name' => $relativePath,
-                'document_name' => "Attestation - {$record->reference}.docx",
+                'document_name' => Document::sanitizeFileName("Attestation - {$record->reference}.docx"),
                 'created_by' => Auth::user()->name,
                 'created_date' => now(),
             ]);

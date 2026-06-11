@@ -50,7 +50,7 @@ class DocumentEmail extends Mailable
     {
         return $this->documents->map(function (Document $document) {
             return Attachment::fromStorageDisk('public', $document->file_name)
-                ->as($document->document_name);
+                ->as(Document::sanitizeFileName($document->document_name));
         })->toArray();
     }
 }
