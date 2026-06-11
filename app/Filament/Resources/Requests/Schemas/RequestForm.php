@@ -213,7 +213,22 @@ class RequestForm
                             ->reactive()
                             ->disabled(fn (callable $get) => ! $get('municipality_code'))
                             ->helperText('Veuillez d\'abord sélectionner une commune')
-                            ->afterStateUpdated(fn (callable $set) => $set('parcels', null)),
+                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                                $selectedParcels = (array) $get('parcels');
+
+                                if (empty($selectedParcels)) {
+                                    return;
+                                }
+
+                                $sections = (array) $state;
+
+                                $keptParcels = array_values(array_filter(
+                                    $selectedParcels,
+                                    fn (string $ident): bool => in_array(substr($ident, 0, -4), $sections, true),
+                                ));
+
+                                $set('parcels', $keptParcels);
+                            }),
 
                         Select::make('parcels')
                             ->label('Parcelles')

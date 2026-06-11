@@ -72,6 +72,20 @@ class GenerateWordAction
 
         $templateProcessor = new TemplateProcessor($template->getFullPath());
 
+        // Recharger les relations complètes : la table précharge ces relations avec
+        // des colonnes limitées (ex: contactPerson:id,name), sans email ni téléphone
+        $record->load([
+            'applicant',
+            'contact',
+            'municipality',
+            'signatory',
+            'certifier',
+            'contactPerson',
+            'followedByUser',
+            'parcels',
+            'roads',
+        ]);
+
         // Construire le mapping complet des données
         $dataMapping = self::buildDataMapping($record);
 
