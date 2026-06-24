@@ -17,6 +17,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 class RequestForm
@@ -75,6 +76,7 @@ class RequestForm
                                     ->preload()
                                     ->required()
                                     ->reactive()
+                                    ->afterStateUpdated(fn (callable $set) => $set('roads', []))
                                     ->native(false)
                                     ->columnSpan(1),
 
@@ -361,20 +363,17 @@ class RequestForm
                         Select::make('roads')
                             ->label('Rues')
                             ->multiple()
-                            ->relationship('roads', 'name')
+                            ->relationship(
+                                name: 'roads',
+                                titleAttribute: 'name',
+                                modifyQueryUsing: fn (Builder $query, callable $get): Builder => $query->when(
+                                    $get('municipality_code'),
+                                    fn (Builder $query, $municipalityCode): Builder => $query->where('municipality_code', $municipalityCode),
+                                    fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+                                ),
+                            )
                             ->searchable()
                             ->preload()
-                            ->options(function (callable $get) {
-                                $municipalityCode = $get('municipality_code');
-
-                                if (! $municipalityCode) {
-                                    return [];
-                                }
-
-                                return Road::where('municipality_code', $municipalityCode)
-                                    ->orderBy('name')
-                                    ->pluck('name', 'CDRURU');
-                            })
                             ->native(false)
                             ->required()
                             ->disabled(fn (callable $get) => ! $get('municipality_code'))
