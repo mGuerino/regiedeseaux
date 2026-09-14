@@ -8,6 +8,7 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
@@ -45,6 +46,11 @@ class AgentsTable
                 TextColumn::make('email')
                     ->label('Email')
                     ->searchable()
+                    ->toggleable(),
+                ImageColumn::make('signature_path')
+                    ->label('Signature')
+                    ->disk('public')
+                    ->height(30)
                     ->toggleable(),
                 IconColumn::make('is_active')
                     ->label('Actif')

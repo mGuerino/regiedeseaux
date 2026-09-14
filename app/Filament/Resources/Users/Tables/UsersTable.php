@@ -50,6 +50,14 @@ class UsersTable
                     ->trueColor('success')
                     ->falseColor('gray')
                     ->sortable(),
+                IconColumn::make('is_supervisor')
+                    ->label('Superviseur')
+                    ->boolean()
+                    ->trueIcon(Heroicon::CheckBadge)
+                    ->falseIcon(Heroicon::XMark)
+                    ->trueColor('success')
+                    ->falseColor('gray')
+                    ->sortable(),
                 TextColumn::make('email_verified_at')
                     ->label('Email vérifié le')
                     ->dateTime('d/m/Y H:i')
@@ -72,6 +80,11 @@ class UsersTable
                     ->placeholder('Tous les utilisateurs')
                     ->trueLabel('Administrateurs uniquement')
                     ->falseLabel('Non-administrateurs uniquement'),
+                TernaryFilter::make('is_supervisor')
+                    ->label('Superviseur')
+                    ->placeholder('Tous les utilisateurs')
+                    ->trueLabel('Superviseurs uniquement')
+                    ->falseLabel('Non-superviseurs uniquement'),
             ])
             ->recordActions([
                 EditAction::make(),

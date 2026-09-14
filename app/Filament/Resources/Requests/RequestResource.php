@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Requests;
 use App\Filament\Resources\Requests\Pages\CreateRequest;
 use App\Filament\Resources\Requests\Pages\EditRequest;
 use App\Filament\Resources\Requests\Pages\ListRequests;
+use App\Filament\Resources\Requests\Pages\ValidateRequest;
 use App\Filament\Resources\Requests\Schemas\RequestForm;
 use App\Filament\Resources\Requests\Tables\RequestsTable;
 use App\Models\Request;
@@ -70,7 +71,7 @@ class RequestResource extends Resource
                 'applicant:id,last_name,first_name,address,address2,postal_code,city,email,phone1,phone2',  // Pour applicant.last_name et génération Word
                 'municipality:code,name,code_with_division',  // Pour municipality.name
                 'contact:id,first_name,last_name',  // Pour contact.last_name
-                
+
                 // Relations pour les colonnes cachées par défaut
                 // Chargées uniquement si visibles, mais préchargées pour éviter N+1
                 'signatory:id,name',  // Pour signatory.name (toggleable hidden)
@@ -86,6 +87,7 @@ class RequestResource extends Resource
             'index' => ListRequests::route('/'),
             'create' => CreateRequest::route('/create'),
             'edit' => EditRequest::route('/{record}/edit'),
+            'validation' => ValidateRequest::route('/{record}/validation'),
         ];
     }
 

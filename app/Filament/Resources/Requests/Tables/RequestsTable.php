@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\Requests\Tables;
 
+use App\Enums\ValidationStatus;
 use App\Filament\Actions\GenerateWordAction;
+use App\Filament\Actions\SendForValidationAction;
+use App\Filament\Resources\Requests\RequestResource;
 use App\Filament\Resources\Requests\Schemas\RequestViewSchema;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -73,6 +76,14 @@ class RequestsTable
                     ->sortable()
                     ->searchable()
                     ->alignment(Alignment::Center),
+
+                TextColumn::make('validation_status')
+                    ->label('Validation')
+                    ->badge()
+                    ->placeholder('Non soumise')
+                    ->sortable()
+                    ->alignment(Alignment::Center)
+                    ->toggleable(),
 
                 // 4. AEP - Compact, à côté du statut
                 IconColumn::make('water_status')
@@ -314,6 +325,11 @@ class RequestsTable
                     ])
                     ->native(false),
 
+                SelectFilter::make('validation_status')
+                    ->label('Validation')
+                    ->options(ValidationStatus::options())
+                    ->native(false),
+
                 // Filtre AEP
                 SelectFilter::make('water_status')
                     ->label('Raccordable AEP')
@@ -434,6 +450,13 @@ class RequestsTable
                     ->modalWidth(Width::SevenExtraLarge),
                 EditAction::make(),
                 GenerateWordAction::make(),
+                SendForValidationAction::make(),
+                Action::make('validate_attestation')
+                    ->label('Valider')
+                    ->icon(Heroicon::OutlinedCheckBadge)
+                    ->color('warning')
+                    ->visible(fn ($record) => Auth::user()->canValidateAttestations() && $record->isAwaitingValidation())
+                    ->url(fn ($record) => RequestResource::getUrl('validation', ['record' => $record])),
                 Action::make('toggle_archive')
                     ->label(fn ($record) => $record->is_archived ? 'Désarchiver' : 'Archiver')
                     ->icon(fn ($record) => $record->is_archived ? Heroicon::OutlinedArchiveBoxArrowDown : Heroicon::OutlinedArchiveBox)

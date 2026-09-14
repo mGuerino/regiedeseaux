@@ -4,6 +4,7 @@ namespace App\Filament\Actions;
 
 use App\Models\Document;
 use App\Models\DocumentTemplate;
+use App\Services\DocxToPdfConverter;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
@@ -13,6 +14,18 @@ use PhpOffice\PhpWord\TemplateProcessor;
 
 class GenerateWordAction
 {
+    /**
+     * Noms de variables Word acceptés pour l'image de signature du signataire.
+     *
+     * @var list<string>
+     */
+    public const SIGNATURE_VARIABLES = ['signature', 'signataire.signature'];
+
+    /**
+     * Largeur d'insertion de l'image de signature, en points.
+     */
+    private const SIGNATURE_WIDTH = 150;
+
     public static function make(): Action
     {
         return Action::make('generate_word')
@@ -92,8 +105,16 @@ class GenerateWordAction
         // Obtenir le mapping complet du template (auto + manuel)
         $templateMapping = $template->getFullMapping();
 
+        // Apposer la signature du signataire dès lors que l'attestation est validée
+        self::applySignature($templateProcessor, $record);
+
         // Appliquer les valeurs pour chaque variable du template
         foreach ($template->variables ?? [] as $variable) {
+            // Les variables de signature sont traitées à part (image, pas texte)
+            if (in_array($variable, self::SIGNATURE_VARIABLES, true)) {
+                continue;
+            }
+
             // Chercher le mapping de la variable
             $mappingKey = $templateMapping[$variable] ?? null;
 
@@ -177,6 +198,76 @@ class GenerateWordAction
             ->send();
 
         return $document;
+    }
+
+    /**
+     * Apposer l'image de signature du signataire dans le document.
+     *
+     * La signature n'est apposée que lorsque l'attestation a été validée par un
+     * superviseur. Dans tous les autres cas les variables de signature sont
+     * vidées afin que le placeholder n'apparaisse pas dans le document final.
+     */
+    private static function applySignature(TemplateProcessor $templateProcessor, $record): void
+    {
+        $signaturePath = $record->isValidated()
+            ? $record->signatory?->getSignatureFullPath()
+            : null;
+
+        foreach (self::SIGNATURE_VARIABLES as $variable) {
+            if ($signaturePath) {
+                $templateProcessor->setImageValue($variable, [
+                    'path' => $signaturePath,
+                    'width' => self::SIGNATURE_WIDTH,
+                    'ratio' => true,
+                ]);
+
+                continue;
+            }
+
+            $templateProcessor->setValue($variable, '');
+        }
+    }
+
+    /**
+     * Convertir une attestation Word en PDF et l'enregistrer comme document
+     * de la demande.
+     *
+     * @throws \App\Exceptions\PdfConversionException
+     */
+    public static function generatePdfFrom(Document $wordDocument, $record): Document
+    {
+        $sourcePath = Storage::disk('public')->path($wordDocument->file_name);
+        $monthFolder = dirname($wordDocument->file_name);
+        $outputDirectory = Storage::disk('public')->path($monthFolder);
+
+        $pdfPath = app(DocxToPdfConverter::class)->convert($sourcePath, $outputDirectory);
+
+        $relativePath = $monthFolder.'/'.basename($pdfPath);
+        $documentName = Document::sanitizeFileName("Attestation - {$record->reference}.pdf");
+
+        $existing = Document::where('request_id', $record->id)
+            ->where('file_name', $relativePath)
+            ->where('document_type', 'generated')
+            ->first();
+
+        if ($existing) {
+            $existing->update([
+                'document_name' => $documentName,
+                'created_by' => Auth::user()?->name,
+                'created_date' => now(),
+            ]);
+
+            return $existing;
+        }
+
+        return Document::create([
+            'request_id' => $record->id,
+            'document_type' => 'generated',
+            'file_name' => $relativePath,
+            'document_name' => $documentName,
+            'created_by' => Auth::user()?->name,
+            'created_date' => now(),
+        ]);
     }
 
     /**

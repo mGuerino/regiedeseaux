@@ -7,6 +7,7 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasAvatar;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -29,6 +30,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar, HasName
         'phone',
         'password',
         'is_admin',
+        'is_supervisor',
         'profile_photo_path',
     ];
 
@@ -53,6 +55,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar, HasName
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'is_supervisor' => 'boolean',
         ];
     }
 
@@ -61,7 +64,32 @@ class User extends Authenticatable implements FilamentUser, HasAvatar, HasName
      */
     public function canAccessPanel(Panel $panel): bool
     {
+        return $this->is_admin === true || $this->is_supervisor === true;
+    }
+
+    /**
+     * Détermine si l'utilisateur a accès à l'ensemble du panel. Les superviseurs
+     * qui ne sont pas administrateurs n'accèdent qu'aux demandes.
+     */
+    public function isAdministrator(): bool
+    {
         return $this->is_admin === true;
+    }
+
+    /**
+     * Détermine si l'utilisateur peut valider les attestations.
+     */
+    public function canValidateAttestations(): bool
+    {
+        return $this->is_supervisor === true;
+    }
+
+    /**
+     * Les superviseurs habilités à valider les attestations.
+     */
+    public function scopeSupervisors(Builder $query): Builder
+    {
+        return $query->where('is_supervisor', true);
     }
 
     /**

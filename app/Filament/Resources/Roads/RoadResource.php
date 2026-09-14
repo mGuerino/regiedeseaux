@@ -16,6 +16,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Auth;
 use UnitEnum;
 
 class RoadResource extends Resource
@@ -33,6 +34,14 @@ class RoadResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Referentiels;
 
     protected static ?int $navigationSort = 6;
+
+    /**
+     * Réservé aux administrateurs : les superviseurs n'accèdent qu'aux demandes.
+     */
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->isAdministrator() === true;
+    }
 
     public static function form(Schema $schema): Schema
     {

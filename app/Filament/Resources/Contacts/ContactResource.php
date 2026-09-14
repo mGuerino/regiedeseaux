@@ -14,6 +14,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 use UnitEnum;
 
 class ContactResource extends Resource
@@ -31,6 +32,14 @@ class ContactResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Referentiels;
 
     protected static ?int $navigationSort = 3;
+
+    /**
+     * Réservé aux administrateurs : les superviseurs n'accèdent qu'aux demandes.
+     */
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->isAdministrator() === true;
+    }
 
     public static function form(Schema $schema): Schema
     {

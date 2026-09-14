@@ -81,6 +81,10 @@ class UserForm
                         Toggle::make('is_admin')
                             ->label('Administrateur')
                             ->helperText('Les administrateurs ont accès au panel Filament.'),
+
+                        Toggle::make('is_supervisor')
+                            ->label('Superviseur')
+                            ->helperText('Les superviseurs valident ou refusent les attestations avant leur envoi.'),
                     ]),
             ]);
     }

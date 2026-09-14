@@ -16,6 +16,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 use UnitEnum;
 
 class MunicipalityResource extends Resource
@@ -33,6 +34,14 @@ class MunicipalityResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Referentiels;
 
     protected static ?int $navigationSort = 4;
+
+    /**
+     * Réservé aux administrateurs : les superviseurs n'accèdent qu'aux demandes.
+     */
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->isAdministrator() === true;
+    }
 
     public static function form(Schema $schema): Schema
     {

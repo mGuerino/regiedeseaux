@@ -35,4 +35,21 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | LibreOffice
+    |--------------------------------------------------------------------------
+    |
+    | Utilisé en mode headless pour convertir les attestations Word en PDF.
+    | Laisser LIBREOFFICE_PATH vide pour laisser l'application détecter le
+    | binaire aux emplacements habituels.
+    |
+    */
+
+    'libreoffice' => [
+        'path' => env('LIBREOFFICE_PATH'),
+        'profile_path' => env('LIBREOFFICE_PROFILE_PATH'),
+        'timeout' => env('LIBREOFFICE_TIMEOUT', 120),
+    ],
+
 ];

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Agents\Schemas;
 
+use App\Models\Agent;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -71,6 +73,20 @@ class AgentForm
                                     ->maxLength(255)
                                     ->columnSpan(1),
                             ]),
+                    ]),
+
+                Section::make('Signature')
+                    ->description('Image apposée sur l\'attestation lorsqu\'un superviseur la valide. Le modèle Word doit contenir la variable ${signature} à l\'emplacement souhaité.')
+                    ->schema([
+                        FileUpload::make('signature_path')
+                            ->label('Image de signature')
+                            ->image()
+                            ->disk(Agent::SIGNATURE_DISK)
+                            ->directory('signatures')
+                            ->visibility('public')
+                            ->maxSize(2048)
+                            ->imagePreviewHeight('120')
+                            ->helperText('PNG à fond transparent recommandé (max 2 Mo).'),
                     ]),
 
                 Section::make('Paramètres')

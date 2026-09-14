@@ -14,6 +14,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 use UnitEnum;
 
 class UserResource extends Resource
@@ -31,6 +32,15 @@ class UserResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = NavigationGroup::Administration;
 
     protected static ?int $navigationSort = 8;
+
+    /**
+     * Réservé aux administrateurs : un superviseur ne doit pas pouvoir modifier
+     * les comptes, ni s'attribuer ou attribuer les droits d'administration.
+     */
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->isAdministrator() === true;
+    }
 
     public static function form(Schema $schema): Schema
     {

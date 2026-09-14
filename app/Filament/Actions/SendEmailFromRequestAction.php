@@ -28,224 +28,253 @@ class SendEmailFromRequestAction
             ->label('Envoyer email')
             ->icon(Heroicon::OutlinedPaperAirplane)
             ->color('success')
-            ->mountUsing(function ($form, $record) {
-                // Pré-remplir tous les champs
-                $recipientKeys = [];
-
-                // Pré-sélectionner le contact s'il a un email
-                if ($record->contact && $record->contact->email) {
-                    $recipientKeys[] = $record->contact->id.'_contact';
-                }
-                // Sinon pré-sélectionner le demandeur s'il a un email
-                elseif ($record->applicant && $record->applicant->email) {
-                    $recipientKeys[] = $record->applicant->id.'_applicant';
-                }
-
-                $applicantName = $record->applicant
-                    ? "{$record->applicant->first_name} {$record->applicant->last_name}"
-                    : 'N/A';
-
-                $form->fill([
-                    'document_ids' => $record->documents->pluck('id')->toArray(),
-                    'recipient_keys' => $recipientKeys,
-                    'manual_emails' => [],
-                    'subject' => "Attestation {$record->reference}",
-                    'message' => "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n".Auth::user()->name,
-                    'mark_as_completed' => false,
-                    'set_response_date' => false,
-                ]);
-            })
-            ->form(fn ($record) => [
-                Section::make('Destinataires')
-                    ->description('Sélectionnez les contacts ou ajoutez des emails manuellement')
-                    ->schema([
-                        Select::make('recipient_keys')
-                            ->label('Destinataires')
-                            ->multiple()
-                            ->searchable()
-                            ->options(fn () => static::getRecipientOptions($record))
-                            ->helperText('Contact et demandeur de cette demande, ou autres personnes'),
-
-                        TagsInput::make('manual_emails')
-                            ->label('Emails supplémentaires')
-                            ->placeholder('email@example.com')
-                            ->helperText('Appuyez sur Entrée après chaque email')
-                            ->nestedRecursiveRules(['email']),
-                    ])
-                    ->columns(1),
-
-                Section::make('Documents à envoyer')
-                    ->schema([
-                        Select::make('document_ids')
-                            ->label('Documents')
-                            ->multiple()
-                            ->required()
-                            ->options(fn () => $record->documents->mapWithKeys(function ($doc) {
-                                $icon = match ($doc->getFileExtension()) {
-                                    'pdf' => '📄',
-                                    'png', 'jpg', 'jpeg', 'bmp', 'gif' => '🖼️',
-                                    'docx', 'doc' => '📝',
-                                    default => '📎',
-                                };
-                                $size = $doc->getFileSizeFormatted();
-                                $type = ucfirst($doc->document_type);
-
-                                return [$doc->id => "{$icon} {$doc->document_name} ({$size} • {$type})"];
-                            }))
-                            ->helperText('Documents attachés à cette demande'),
-                    ])
-                    ->columns(1),
-
-                Section::make('Message')
-                    ->schema([
-                        TextInput::make('subject')
-                            ->label('Sujet')
-                            ->required()
-                            ->maxLength(255),
-
-                        Textarea::make('message')
-                            ->label('Message')
-                            ->required()
-                            ->rows(8)
-                            ->helperText('Personnalisez le message si nécessaire'),
-                    ])
-                    ->columns(1),
-
-                Section::make('Options')
-                    ->schema([
-                        Checkbox::make('mark_as_completed')
-                            ->label('Marquer la demande comme "Terminée" après l\'envoi')
-                            ->inline(false),
-
-                        Checkbox::make('set_response_date')
-                            ->label('Définir la date de réponse à aujourd\'hui')
-                            ->inline(false),
-                    ])
-                    ->columns(1),
-            ])
-            ->action(function (array $data, $record) {
-                // Récupération des documents
-                $documents = $record->documents()->whereIn('id', $data['document_ids'])->get();
-
-                if ($documents->isEmpty()) {
-                    Notification::make()
-                        ->title('Erreur')
-                        ->body('Aucun document sélectionné.')
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                // Vérifier que tous les fichiers existent
-                $missingFiles = [];
-                foreach ($documents as $document) {
-                    if (! Storage::disk('public')->exists($document->file_name)) {
-                        $missingFiles[] = $document->document_name;
-                    }
-                }
-
-                if (! empty($missingFiles)) {
-                    Notification::make()
-                        ->title('Fichiers manquants')
-                        ->body('Les fichiers suivants sont introuvables : '.implode(', ', $missingFiles))
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                // Récupération des emails depuis les clés + emails manuels
-                $emails = static::getRecipientEmails($data['recipient_keys'] ?? [], $data['manual_emails'] ?? []);
-
-                if (empty($emails)) {
-                    Notification::make()
-                        ->title('Erreur')
-                        ->body('Veuillez sélectionner au moins un destinataire.')
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                // Vérification de la taille totale
-                $totalSize = 0;
-                foreach ($documents as $document) {
-                    $totalSize += $document->getFileSizeBytes();
-                }
-
-                $maxSize = 10 * 1024 * 1024; // 10 MB
-                if ($totalSize > $maxSize) {
-                    $totalSizeMB = round($totalSize / (1024 * 1024), 2);
-                    Notification::make()
-                        ->title('Taille de fichiers trop importante')
-                        ->body("La taille totale des documents ({$totalSizeMB} Mo) dépasse la limite autorisée de 10 Mo.")
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                // Envoi des emails
-                $successCount = 0;
-                $errors = [];
-
-                foreach ($emails as $email) {
-                    try {
-                        Mail::to($email)->send(new DocumentEmail(
-                            emailSubject: $data['subject'],
-                            messageContent: $data['message'],
-                            documents: $documents,
-                        ));
-                        $successCount++;
-                    } catch (\Exception $e) {
-                        $errors[] = "Erreur pour {$email}: ".$e->getMessage();
-                    }
-                }
-
-                // Enregistrement dans l'historique
-                EmailLog::create([
-                    'subject' => $data['subject'],
-                    'message' => $data['message'],
-                    'recipients' => $emails,
-                    'recipient_keys' => $data['recipient_keys'] ?? [],
-                    'document_ids' => $data['document_ids'],
-                    'sent_by' => Auth::user()->name,
-                    'recipients_count' => count($emails),
-                    'success' => empty($errors),
-                    'error_message' => ! empty($errors) ? implode("\n", $errors) : null,
-                ]);
-
-                // Mise à jour de la demande si demandé
-                if ($data['mark_as_completed'] ?? false) {
-                    $record->update(['request_status' => 2]); // Terminée
-                }
-
-                if ($data['set_response_date'] ?? false) {
-                    $record->update(['response_date' => now()]);
-                }
-
-                // Notifications
-                if ($successCount > 0) {
-                    Notification::make()
-                        ->title('Email(s) envoyé(s)')
-                        ->body("{$successCount} email(s) envoyé(s) avec succès.")
-                        ->success()
-                        ->send();
-                }
-
-                if (! empty($errors)) {
-                    Notification::make()
-                        ->title('Erreurs d\'envoi')
-                        ->body(implode("\n", $errors))
-                        ->danger()
-                        ->duration(10000)
-                        ->send();
-                }
-            })
+            ->mountUsing(fn ($form, $record) => $form->fill(static::defaultFormData($record)))
+            ->form(fn ($record) => static::formSchema($record))
+            ->action(fn (array $data, $record) => static::send($data, $record))
             ->modalHeading('Envoyer des documents par email')
             ->modalSubmitActionLabel('Envoyer')
             ->modalWidth('4xl');
+    }
+
+    /**
+     * Valeurs de pré-remplissage du formulaire d'envoi.
+     *
+     * @param  list<int>|null  $documentIds  Documents à présélectionner, tous par défaut
+     * @return array<string, mixed>
+     */
+    public static function defaultFormData($record, ?array $documentIds = null): array
+    {
+        $recipientKeys = [];
+
+        // Pré-sélectionner le contact s'il a un email
+        if ($record->contact && $record->contact->email) {
+            $recipientKeys[] = $record->contact->id.'_contact';
+        }
+        // Sinon pré-sélectionner le demandeur s'il a un email
+        elseif ($record->applicant && $record->applicant->email) {
+            $recipientKeys[] = $record->applicant->id.'_applicant';
+        }
+
+        $applicantName = $record->applicant
+            ? "{$record->applicant->first_name} {$record->applicant->last_name}"
+            : 'N/A';
+
+        return [
+            'document_ids' => $documentIds ?? $record->documents->pluck('id')->toArray(),
+            'recipient_keys' => $recipientKeys,
+            'manual_emails' => [],
+            'subject' => "Attestation {$record->reference}",
+            'message' => "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n".Auth::user()->name,
+            'mark_as_completed' => false,
+            'set_response_date' => false,
+        ];
+    }
+
+    /**
+     * Schéma du formulaire d'envoi d'email.
+     *
+     * @return array<int, \Filament\Schemas\Components\Component>
+     */
+    public static function formSchema($record): array
+    {
+        return [
+            Section::make('Destinataires')
+                ->description('Sélectionnez les contacts ou ajoutez des emails manuellement')
+                ->schema([
+                    Select::make('recipient_keys')
+                        ->label('Destinataires')
+                        ->multiple()
+                        ->searchable()
+                        ->options(fn () => static::getRecipientOptions($record))
+                        ->helperText('Contact et demandeur de cette demande, ou autres personnes'),
+
+                    TagsInput::make('manual_emails')
+                        ->label('Emails supplémentaires')
+                        ->placeholder('email@example.com')
+                        ->helperText('Appuyez sur Entrée après chaque email')
+                        ->nestedRecursiveRules(['email']),
+                ])
+                ->columns(1),
+
+            Section::make('Documents à envoyer')
+                ->schema([
+                    Select::make('document_ids')
+                        ->label('Documents')
+                        ->multiple()
+                        ->required()
+                        ->options(fn () => $record->documents->mapWithKeys(function ($doc) {
+                            $icon = match ($doc->getFileExtension()) {
+                                'pdf' => '📄',
+                                'png', 'jpg', 'jpeg', 'bmp', 'gif' => '🖼️',
+                                'docx', 'doc' => '📝',
+                                default => '📎',
+                            };
+                            $size = $doc->getFileSizeFormatted();
+                            $type = ucfirst($doc->document_type);
+
+                            return [$doc->id => "{$icon} {$doc->document_name} ({$size} • {$type})"];
+                        }))
+                        ->helperText('Documents attachés à cette demande'),
+                ])
+                ->columns(1),
+
+            Section::make('Message')
+                ->schema([
+                    TextInput::make('subject')
+                        ->label('Sujet')
+                        ->required()
+                        ->maxLength(255),
+
+                    Textarea::make('message')
+                        ->label('Message')
+                        ->required()
+                        ->rows(8)
+                        ->helperText('Personnalisez le message si nécessaire'),
+                ])
+                ->columns(1),
+
+            Section::make('Options')
+                ->schema([
+                    Checkbox::make('mark_as_completed')
+                        ->label('Marquer la demande comme "Terminée" après l\'envoi')
+                        ->inline(false),
+
+                    Checkbox::make('set_response_date')
+                        ->label('Définir la date de réponse à aujourd\'hui')
+                        ->inline(false),
+                ])
+                ->columns(1),
+        ];
+    }
+
+    /**
+     * Envoyer les documents sélectionnés aux destinataires choisis.
+     *
+     * @param  array<string, mixed>  $data
+     * @return bool Vrai si au moins un email a été envoyé sans erreur
+     */
+    public static function send(array $data, $record): bool
+    {
+        // Récupération des documents
+        $documents = $record->documents()->whereIn('id', $data['document_ids'])->get();
+
+        if ($documents->isEmpty()) {
+            Notification::make()
+                ->title('Erreur')
+                ->body('Aucun document sélectionné.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        // Vérifier que tous les fichiers existent
+        $missingFiles = [];
+        foreach ($documents as $document) {
+            if (! Storage::disk('public')->exists($document->file_name)) {
+                $missingFiles[] = $document->document_name;
+            }
+        }
+
+        if (! empty($missingFiles)) {
+            Notification::make()
+                ->title('Fichiers manquants')
+                ->body('Les fichiers suivants sont introuvables : '.implode(', ', $missingFiles))
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        // Récupération des emails depuis les clés + emails manuels
+        $emails = static::getRecipientEmails($data['recipient_keys'] ?? [], $data['manual_emails'] ?? []);
+
+        if (empty($emails)) {
+            Notification::make()
+                ->title('Erreur')
+                ->body('Veuillez sélectionner au moins un destinataire.')
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        // Vérification de la taille totale
+        $totalSize = 0;
+        foreach ($documents as $document) {
+            $totalSize += $document->getFileSizeBytes();
+        }
+
+        $maxSize = 10 * 1024 * 1024; // 10 MB
+        if ($totalSize > $maxSize) {
+            $totalSizeMB = round($totalSize / (1024 * 1024), 2);
+            Notification::make()
+                ->title('Taille de fichiers trop importante')
+                ->body("La taille totale des documents ({$totalSizeMB} Mo) dépasse la limite autorisée de 10 Mo.")
+                ->danger()
+                ->send();
+
+            return false;
+        }
+
+        // Envoi des emails
+        $successCount = 0;
+        $errors = [];
+
+        foreach ($emails as $email) {
+            try {
+                Mail::to($email)->send(new DocumentEmail(
+                    emailSubject: $data['subject'],
+                    messageContent: $data['message'],
+                    documents: $documents,
+                ));
+                $successCount++;
+            } catch (\Exception $e) {
+                $errors[] = "Erreur pour {$email}: ".$e->getMessage();
+            }
+        }
+
+        // Enregistrement dans l'historique
+        EmailLog::create([
+            'subject' => $data['subject'],
+            'message' => $data['message'],
+            'recipients' => $emails,
+            'recipient_keys' => $data['recipient_keys'] ?? [],
+            'document_ids' => $data['document_ids'],
+            'sent_by' => Auth::user()->name,
+            'recipients_count' => count($emails),
+            'success' => empty($errors),
+            'error_message' => ! empty($errors) ? implode("\n", $errors) : null,
+        ]);
+
+        // Mise à jour de la demande si demandé
+        if ($data['mark_as_completed'] ?? false) {
+            $record->update(['request_status' => 2]); // Terminée
+        }
+
+        if ($data['set_response_date'] ?? false) {
+            $record->update(['response_date' => now()]);
+        }
+
+        // Notifications
+        if ($successCount > 0) {
+            Notification::make()
+                ->title('Email(s) envoyé(s)')
+                ->body("{$successCount} email(s) envoyé(s) avec succès.")
+                ->success()
+                ->send();
+        }
+
+        if (! empty($errors)) {
+            Notification::make()
+                ->title('Erreurs d\'envoi')
+                ->body(implode("\n", $errors))
+                ->danger()
+                ->duration(10000)
+                ->send();
+        }
+
+        return $successCount > 0 && empty($errors);
     }
 
     /**

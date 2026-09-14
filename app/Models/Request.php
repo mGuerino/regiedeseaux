@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ValidationStatus;
 use App\Models\Scopes\ExcludeArchivedScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -33,6 +34,12 @@ class Request extends Model
         'request_date',
         'response_date',
         'request_status',
+        'validation_status',
+        'validation_requested_at',
+        'validation_requested_by',
+        'validated_at',
+        'validated_by',
+        'rejection_reason',
         'water_status',
         'wastewater_status',
         'observations',
@@ -56,6 +63,9 @@ class Request extends Model
             'updated_date' => 'date',
             'is_archived' => 'boolean',
             'archived_at' => 'datetime',
+            'validation_status' => ValidationStatus::class,
+            'validation_requested_at' => 'datetime',
+            'validated_at' => 'datetime',
         ];
     }
 
@@ -87,6 +97,16 @@ class Request extends Model
     public function followedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'followed_by_user_id');
+    }
+
+    public function validationRequestedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validation_requested_by');
+    }
+
+    public function validatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
     }
 
     public function municipality(): BelongsTo
@@ -136,5 +156,82 @@ class Request extends Model
     {
         return $query->withoutGlobalScope(ExcludeArchivedScope::class)
             ->where('is_archived', true);
+    }
+
+    /**
+     * Les demandes en attente de validation par un superviseur.
+     */
+    public function scopeAwaitingValidation($query)
+    {
+        return $query->where('validation_status', ValidationStatus::Pending);
+    }
+
+    /**
+     * L'attestation attend la validation d'un superviseur.
+     */
+    public function isAwaitingValidation(): bool
+    {
+        return $this->validation_status === ValidationStatus::Pending;
+    }
+
+    /**
+     * L'attestation a été validée par un superviseur.
+     */
+    public function isValidated(): bool
+    {
+        return $this->validation_status === ValidationStatus::Approved;
+    }
+
+    /**
+     * L'attestation a été refusée par un superviseur.
+     */
+    public function isValidationRejected(): bool
+    {
+        return $this->validation_status === ValidationStatus::Rejected;
+    }
+
+    /**
+     * L'attestation est en attente de validation ou déjà validée.
+     */
+    public function hasActiveValidation(): bool
+    {
+        return $this->isAwaitingValidation() || $this->isValidated();
+    }
+
+    /**
+     * L'attestation peut être envoyée en validation : elle ne doit pas déjà
+     * être en attente, ni avoir été validée.
+     */
+    public function canBeSentForValidation(): bool
+    {
+        return ! $this->hasActiveValidation();
+    }
+
+    /**
+     * Annuler la validation en cours ou accordée : l'attestation devra être
+     * renvoyée en validation avant de pouvoir être signée.
+     */
+    public function resetValidation(): void
+    {
+        $this->update([
+            'validation_status' => null,
+            'validation_requested_at' => null,
+            'validation_requested_by' => null,
+            'validated_at' => null,
+            'validated_by' => null,
+            'rejection_reason' => null,
+        ]);
+    }
+
+    /**
+     * Récupérer le dernier document généré (attestation) au format demandé.
+     */
+    public function latestGeneratedDocument(string $extension = 'docx'): ?Document
+    {
+        return $this->documents()
+            ->where('document_type', 'generated')
+            ->where('file_name', 'like', '%.'.$extension)
+            ->latest('id')
+            ->first();
     }
 }

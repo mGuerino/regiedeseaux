@@ -30,6 +30,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use PhpOffice\PhpWord\TemplateProcessor;
 
@@ -50,6 +51,14 @@ class ManageTemplates extends Page implements HasActions, HasForms, HasTable
     protected static ?int $navigationSort = 6;
 
     public ?array $data = [];
+
+    /**
+     * Réservé aux administrateurs : les superviseurs n'accèdent qu'aux demandes.
+     */
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->isAdministrator() === true;
+    }
 
     public function getView(): string
     {

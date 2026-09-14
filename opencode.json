@@ -20,6 +20,15 @@
             "environment": {
                 "SITE_PATH": "/Users/michaelguerino/code/regiedeseaux"
             }
+        },
+        "puppeteer": {
+            "type": "local",
+            "enabled": true,
+            "command": [
+                "npx",
+                "-y",
+                "@modelcontextprotocol/server-puppeteer"
+            ]
         }
     }
 }

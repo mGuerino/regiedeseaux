@@ -123,6 +123,70 @@ curl -I https://votre-domaine.test/storage/  # Doit retourner 200 ou 403 (pas 40
 - L'utilisateur `www-data` est l'utilisateur par défaut de Nginx/Apache sur Debian/Ubuntu
 - Si tu es sur CentOS/RHEL, l'utilisateur peut être `nginx` ou `apache`
 
+---
+
+## LibreOffice — Requis pour la validation des attestations
+
+La validation d'une attestation par un superviseur affiche le document en PDF dans le
+navigateur. La conversion Word → PDF est faite par LibreOffice en mode headless : **sans
+lui, l'envoi en validation échoue avec un message d'erreur explicite.**
+
+```bash
+# 1. Installer LibreOffice (aucun démon, aucun port réseau)
+sudo apt update
+sudo apt install --no-install-recommends libreoffice-writer fonts-liberation
+
+# 2. Créer le profil LibreOffice accessible en écriture par www-data
+sudo mkdir -p /var/lib/attestations/libreoffice
+sudo chown www-data:www-data /var/lib/attestations/libreoffice
+
+# 3. Vérifier que www-data peut lancer LibreOffice
+sudo -u www-data soffice --headless --version
+
+# 4. Test de conversion de bout en bout
+sudo -u www-data soffice --headless \
+  -env:UserInstallation=file:///var/lib/attestations/libreoffice \
+  --convert-to pdf --outdir /tmp \
+  /var/www/regiedeseaux/storage/app/templates/template_attestation.docx
+```
+
+Puis dans le `.env` du serveur :
+
+```dotenv
+LIBREOFFICE_PATH=/usr/bin/soffice
+LIBREOFFICE_PROFILE_PATH=/var/lib/attestations/libreoffice
+LIBREOFFICE_TIMEOUT=120
+```
+
+### Polices
+
+Le modèle d'attestation utilise **Gandhi Sans** pour le corps du texte, absente des dépôts
+Ubuntu. Sans elle, le PDF sera mis en page différemment du document Word :
+
+```bash
+sudo mkdir -p /usr/local/share/fonts/attestations
+sudo cp GandhiSans*.ttf /usr/local/share/fonts/attestations/
+sudo chmod 644 /usr/local/share/fonts/attestations/*
+sudo fc-cache -f
+
+# Vérifier
+fc-list | grep -i gandhi
+```
+
+`fonts-liberation` couvre Arial, Times New Roman et Courier New avec des métriques
+identiques. Tahoma et Corbel (usage marginal : un style et le thème) restent substituées.
+
+### Configuration applicative
+
+1. **Désigner les superviseurs** : Administration → Utilisateurs → cocher « Superviseur ».
+   Sans superviseur désigné, l'envoi en validation ne notifie personne.
+2. **Ajouter la signature des signataires** : Référentiels → Agents → champ « Image de
+   signature » (PNG à fond transparent recommandé).
+3. **Ajouter la variable `${signature}` dans le modèle Word**, à l'emplacement où la
+   signature doit apparaître, puis resynchroniser les variables du modèle depuis la page
+   Templates. Sans cette variable, la validation fonctionne mais aucune signature n'est
+   apposée.
+
 ## Checklist de Déploiement
 
 - [ ] `npm run build` exécuté en local si CSS/JS modifiés
