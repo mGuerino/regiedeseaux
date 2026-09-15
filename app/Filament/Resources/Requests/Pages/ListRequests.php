@@ -10,6 +10,7 @@ use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Auth;
 
 class ListRequests extends ListRecords
 {
@@ -31,19 +32,19 @@ class ListRequests extends ListRecords
 
     public function getTabs(): array
     {
-        $awaitingValidationCount = Request::awaitingValidation()->count();
-
         $tabs = [
             'all' => Tab::make('Toutes')
                 ->badge(fn () => Request::count()),
         ];
 
-        // Onglet de suivi des attestations en attente, masqué lorsqu'il est vide
-        if ($awaitingValidationCount > 0) {
+        // Onglet de suivi réservé aux superviseurs. Il reste affiché même à zéro :
+        // le faire disparaître après la dernière validation laisserait l'onglet
+        // actif sans correspondance, et donc la liste complète non filtrée.
+        if (Auth::user()?->canValidateAttestations()) {
             $tabs['awaiting_validation'] = Tab::make('À valider')
                 ->icon(Heroicon::OutlinedClock)
                 ->modifyQueryUsing(fn ($query) => $query->awaitingValidation())
-                ->badge($awaitingValidationCount)
+                ->badge(fn () => Request::awaitingValidation()->count())
                 ->badgeColor('warning');
         }
 

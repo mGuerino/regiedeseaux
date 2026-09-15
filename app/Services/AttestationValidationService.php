@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Mail;
 
 class AttestationValidationService
 {
+    protected int $notifiedSupervisorsCount = 0;
+
     /**
      * Envoyer une attestation en validation : l'attestation est régénérée, son
      * PDF de consultation est produit, puis les superviseurs sont notifiés.
@@ -24,7 +26,7 @@ class AttestationValidationService
      */
     public function sendForValidation(Request $request, User $requestedBy): Document
     {
-        $wordDocument = GenerateWordAction::generate($request);
+        $wordDocument = GenerateWordAction::generate($request, notify: false);
 
         if (! $wordDocument) {
             throw new \RuntimeException("L'attestation n'a pas pu être générée. Vérifiez qu'un modèle Word par défaut est bien configuré.");
@@ -70,7 +72,7 @@ class AttestationValidationService
         $wordDocument = null;
 
         try {
-            $wordDocument = GenerateWordAction::generate($request);
+            $wordDocument = GenerateWordAction::generate($request, notify: false);
 
             if (! $wordDocument) {
                 throw new \RuntimeException("L'attestation signée n'a pas pu être générée.");
@@ -99,7 +101,7 @@ class AttestationValidationService
     protected function restoreUnsignedAttestation(Request $request): void
     {
         try {
-            GenerateWordAction::generate($request);
+            GenerateWordAction::generate($request, notify: false);
         } catch (\Throwable $e) {
             Log::error('Impossible de régénérer l\'attestation non signée après l\'échec de la validation', [
                 'request_id' => $request->id,
@@ -124,14 +126,44 @@ class AttestationValidationService
     }
 
     /**
+     * Un superviseur au moins est-il joignable ? Sans destinataire, l'envoi en
+     * validation n'a pas de sens : il laisserait la demande en attente d'une
+     * personne qui n'existe pas.
+     */
+    public function hasNotifiableSupervisors(): bool
+    {
+        return $this->notifiableSupervisors()->exists();
+    }
+
+    /**
+     * Nombre de superviseurs effectivement prévenus lors du dernier envoi en
+     * validation. Un envoi qui échoue (SMTP indisponible) ne doit pas être
+     * annoncé à l'agent comme réussi.
+     */
+    public function notifiedSupervisorsCount(): int
+    {
+        return $this->notifiedSupervisorsCount;
+    }
+
+    /**
+     * Requête des superviseurs disposant d'une adresse email exploitable.
+     */
+    protected function notifiableSupervisors(): \Illuminate\Database\Eloquent\Builder
+    {
+        return User::query()
+            ->supervisors()
+            ->whereNotNull('email')
+            ->where('email', '!=', '');
+    }
+
+    /**
      * Prévenir par email tous les superviseurs disposant d'une adresse.
      */
     protected function notifySupervisors(Request $request, User $requestedBy): void
     {
-        $supervisors = User::supervisors()
-            ->whereNotNull('email')
-            ->where('email', '!=', '')
-            ->get();
+        $this->notifiedSupervisorsCount = 0;
+
+        $supervisors = $this->notifiableSupervisors()->get();
 
         if ($supervisors->isEmpty()) {
             Log::warning('Aucun superviseur à notifier pour la validation d\'attestation', [
@@ -148,6 +180,8 @@ class AttestationValidationService
                 Mail::to($supervisor->email)->send(
                     new AttestationValidationRequested($request, $requestedBy, $validationUrl)
                 );
+
+                $this->notifiedSupervisorsCount++;
             } catch (\Exception $e) {
                 Log::error('Envoi de la demande de validation échoué', [
                     'request_id' => $request->id,

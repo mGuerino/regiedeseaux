@@ -16,6 +16,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Auth;
 
 class RequestResource extends Resource
 {
@@ -31,14 +32,51 @@ class RequestResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    /**
+     * Pour un superviseur, le badge compte les attestations qui attendent son
+     * intervention : c'est la seule chose qu'il puisse traiter depuis le menu.
+     * Les autres utilisateurs conservent le décompte des demandes en cours.
+     */
     public static function getNavigationBadge(): ?string
     {
+        $awaitingValidation = self::awaitingValidationCount();
+
+        if ($awaitingValidation > 0) {
+            return (string) $awaitingValidation;
+        }
+
         return (string) Request::where('request_status', 1)->count();
     }
 
     public static function getNavigationBadgeColor(): ?string
     {
-        return 'warning';
+        return self::awaitingValidationCount() > 0 ? 'danger' : 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        $awaitingValidation = self::awaitingValidationCount();
+
+        if ($awaitingValidation > 0) {
+            return $awaitingValidation > 1
+                ? "{$awaitingValidation} attestations attendent votre validation"
+                : 'Une attestation attend votre validation';
+        }
+
+        return 'Demandes en cours';
+    }
+
+    /**
+     * Nombre d'attestations en attente de validation, nul pour un utilisateur
+     * qui n'est pas superviseur.
+     */
+    protected static function awaitingValidationCount(): int
+    {
+        if (! Auth::user()?->canValidateAttestations()) {
+            return 0;
+        }
+
+        return Request::awaitingValidation()->count();
     }
 
     public static function form(Schema $schema): Schema

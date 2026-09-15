@@ -16,6 +16,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -65,6 +66,14 @@ class RequestForm
     {
         return $schema
             ->components([
+                // Bandeau d'état de la validation. Composant du schéma plutôt que
+                // widget d'en-tête : il est rendu par le formulaire lui-même et
+                // reste donc à jour après un envoi en validation, là où un
+                // composant Livewire enfant conserverait l'état précédent.
+                View::make('filament.resources.requests.partials.validation-banner')
+                    ->visible(fn (?\App\Models\Request $record): bool => $record?->validation_status !== null)
+                    ->columnSpanFull(),
+
                 Section::make('Informations générales')
                     ->schema([
                         Grid::make(2)

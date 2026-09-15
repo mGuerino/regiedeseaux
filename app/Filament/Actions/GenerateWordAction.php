@@ -66,7 +66,14 @@ class GenerateWordAction
             });
     }
 
-    public static function generate($record, ?int $templateId = null): ?Document
+    /**
+     * Générer l'attestation Word de la demande.
+     *
+     * @param  bool  $notify  Émettre les notifications Filament. À désactiver
+     *                        lorsque l'appelant rend compte lui-même du résultat,
+     *                        afin de ne pas empiler plusieurs messages.
+     */
+    public static function generate($record, ?int $templateId = null, bool $notify = true): ?Document
     {
         // Récupérer le template (par défaut ou spécifié)
         $template = $templateId
@@ -74,11 +81,13 @@ class GenerateWordAction
             : DocumentTemplate::getDefault();
 
         if (! $template) {
-            Notification::make()
-                ->title('Erreur')
-                ->body('Aucun template par défaut défini. Veuillez configurer un template dans la page Templates.')
-                ->danger()
-                ->send();
+            if ($notify) {
+                Notification::make()
+                    ->title('Erreur')
+                    ->body('Aucun template par défaut défini. Veuillez configurer un template dans la page Templates.')
+                    ->danger()
+                    ->send();
+            }
 
             return null;
         }
@@ -181,21 +190,23 @@ class GenerateWordAction
             $actionMessage = 'générée';
         }
 
-        // URL pour téléchargement via le symlink storage
-        $downloadUrl = asset("storage/{$relativePath}");
+        if ($notify) {
+            // URL pour téléchargement via le symlink storage
+            $downloadUrl = asset("storage/{$relativePath}");
 
-        // Notification de succès avec lien de téléchargement
-        Notification::make()
-            ->title('Attestation '.$actionMessage)
-            ->success()
-            ->body("L'attestation pour la demande {$record->reference} a été {$actionMessage} avec succès.")
-            ->actions([
-                Action::make('download')
-                    ->label('Télécharger')
-                    ->url($downloadUrl)
-                    ->openUrlInNewTab(),
-            ])
-            ->send();
+            // Notification de succès avec lien de téléchargement
+            Notification::make()
+                ->title('Attestation '.$actionMessage)
+                ->success()
+                ->body("L'attestation pour la demande {$record->reference} a été {$actionMessage} avec succès.")
+                ->actions([
+                    Action::make('download')
+                        ->label('Télécharger')
+                        ->url($downloadUrl)
+                        ->openUrlInNewTab(),
+                ])
+                ->send();
+        }
 
         return $document;
     }

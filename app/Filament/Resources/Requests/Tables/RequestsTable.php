@@ -9,6 +9,7 @@ use App\Filament\Resources\Requests\RequestResource;
 use App\Filament\Resources\Requests\Schemas\RequestViewSchema;
 use Carbon\Carbon;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -449,38 +450,46 @@ class RequestsTable
                     ->schema(RequestViewSchema::getComponents())
                     ->modalWidth(Width::SevenExtraLarge),
                 EditAction::make(),
-                GenerateWordAction::make(),
-                SendForValidationAction::make(),
-                Action::make('validate_attestation')
-                    ->label('Valider')
-                    ->icon(Heroicon::OutlinedCheckBadge)
-                    ->color('warning')
-                    ->visible(fn ($record) => Auth::user()->canValidateAttestations() && $record->isAwaitingValidation())
-                    ->url(fn ($record) => RequestResource::getUrl('validation', ['record' => $record])),
-                Action::make('toggle_archive')
-                    ->label(fn ($record) => $record->is_archived ? 'Désarchiver' : 'Archiver')
-                    ->icon(fn ($record) => $record->is_archived ? Heroicon::OutlinedArchiveBoxArrowDown : Heroicon::OutlinedArchiveBox)
-                    ->color(fn ($record) => $record->is_archived ? 'success' : 'gray')
-                    ->requiresConfirmation()
-                    ->modalHeading(fn ($record) => $record->is_archived ? 'Désarchiver cette demande ?' : 'Archiver cette demande ?')
-                    ->modalDescription(fn ($record) => $record->is_archived
-                        ? 'Cette demande redeviendra visible dans la liste principale.'
-                        : 'Cette demande sera masquée de la liste principale. Vous pourrez la retrouver en activant le filtre "Archivées".'
-                    )
-                    ->action(function ($record) {
-                        $isArchiving = ! $record->is_archived;
+                // Regroupées : alignées en clair, ces actions sortaient de
+                // l'écran et n'étaient atteignables qu'en faisant défiler le
+                // tableau horizontalement.
+                ActionGroup::make([
+                    GenerateWordAction::make(),
+                    SendForValidationAction::make(),
+                    Action::make('validate_attestation')
+                        ->label('Valider')
+                        ->icon(Heroicon::OutlinedCheckBadge)
+                        ->color('warning')
+                        ->visible(fn ($record) => Auth::user()->canValidateAttestations() && $record->isAwaitingValidation())
+                        ->url(fn ($record) => RequestResource::getUrl('validation', ['record' => $record])),
+                    Action::make('toggle_archive')
+                        ->label(fn ($record) => $record->is_archived ? 'Désarchiver' : 'Archiver')
+                        ->icon(fn ($record) => $record->is_archived ? Heroicon::OutlinedArchiveBoxArrowDown : Heroicon::OutlinedArchiveBox)
+                        ->color(fn ($record) => $record->is_archived ? 'success' : 'gray')
+                        ->requiresConfirmation()
+                        ->modalHeading(fn ($record) => $record->is_archived ? 'Désarchiver cette demande ?' : 'Archiver cette demande ?')
+                        ->modalDescription(fn ($record) => $record->is_archived
+                            ? 'Cette demande redeviendra visible dans la liste principale.'
+                            : 'Cette demande sera masquée de la liste principale. Vous pourrez la retrouver en activant le filtre "Archivées".'
+                        )
+                        ->action(function ($record) {
+                            $isArchiving = ! $record->is_archived;
 
-                        $record->update([
-                            'is_archived' => $isArchiving,
-                            'archived_at' => $isArchiving ? now() : null,
-                            'archived_by' => $isArchiving ? Auth::user()->name : null,
-                        ]);
+                            $record->update([
+                                'is_archived' => $isArchiving,
+                                'archived_at' => $isArchiving ? now() : null,
+                                'archived_by' => $isArchiving ? Auth::user()->name : null,
+                            ]);
 
-                        Notification::make()
-                            ->title($record->is_archived ? 'Demande archivée' : 'Demande désarchivée')
-                            ->success()
-                            ->send();
-                    }),
+                            Notification::make()
+                                ->title($record->is_archived ? 'Demande archivée' : 'Demande désarchivée')
+                                ->success()
+                                ->send();
+                        }),
+                ])
+                    ->label('Autres actions')
+                    ->icon(Heroicon::OutlinedEllipsisHorizontal)
+                    ->tooltip('Autres actions'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
@@ -489,9 +498,20 @@ class RequestsTable
                         ->label('Générer attestation (Lot)')
                         ->icon(Heroicon::DocumentText)
                         ->color('info')
-                        ->action(fn (Collection $records) => $records->each(
-                            fn ($record) => GenerateWordAction::generate($record)
-                        )),
+                        ->action(function (Collection $records): void {
+                            // Sans notify: false, chaque demande empilerait sa
+                            // propre notification de succès.
+                            $generated = $records
+                                ->map(fn ($record) => GenerateWordAction::generate($record, notify: false))
+                                ->filter()
+                                ->count();
+
+                            Notification::make()
+                                ->title('Génération terminée')
+                                ->body("{$generated} attestation(s) générée(s) sur {$records->count()} demande(s) sélectionnée(s).")
+                                ->success()
+                                ->send();
+                        }),
                     ForceDeleteBulkAction::make(),
                     RestoreBulkAction::make(),
                 ]),

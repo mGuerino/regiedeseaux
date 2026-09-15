@@ -93,7 +93,19 @@ class ValidateRequest extends Page
             ->visible(fn () => $this->record->isAwaitingValidation())
             ->requiresConfirmation()
             ->modalHeading("Valider l'attestation")
-            ->modalDescription('La signature du signataire va être apposée sur l\'attestation, puis le formulaire d\'envoi par email s\'ouvrira.')
+            ->modalDescription(function (): string {
+                $signatory = $this->record->signatory;
+
+                if ($signatory?->hasSignature()) {
+                    return "La signature de {$signatory->name} va être apposée sur l'attestation, puis le formulaire d'envoi par email s'ouvrira.";
+                }
+
+                if (! $signatory) {
+                    return 'Aucun signataire n\'est renseigné sur cette demande : l\'attestation sera validée sans signature. Le formulaire d\'envoi par email s\'ouvrira ensuite.';
+                }
+
+                return "Aucune image de signature n'est enregistrée pour {$signatory->name} : l'attestation sera validée sans signature. Le formulaire d'envoi par email s'ouvrira ensuite.";
+            })
             ->modalSubmitActionLabel('Valider')
             ->action(function () {
                 try {

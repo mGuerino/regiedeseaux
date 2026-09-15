@@ -131,26 +131,54 @@ La validation d'une attestation par un superviseur affiche le document en PDF da
 navigateur. La conversion Word → PDF est faite par LibreOffice en mode headless : **sans
 lui, l'envoi en validation échoue avec un message d'erreur explicite.**
 
+Aucun démon n'est lancé, aucun port réseau n'est ouvert : le binaire est appelé à la
+demande par PHP via `App\Services\DocxToPdfConverter`.
+
+> Procédure validée le 14/09/2026 sur le serveur de test (`10.100.20.13`) :
+> Ubuntu 24.04.3 LTS, PHP 8.3.6, LibreOffice 24.2.7.2.
+
+### 1. Installation du paquet
+
 ```bash
-# 1. Installer LibreOffice (aucun démon, aucun port réseau)
 sudo apt update
 sudo apt install --no-install-recommends libreoffice-writer fonts-liberation
+```
 
-# 2. Créer le profil LibreOffice accessible en écriture par www-data
+Environ 400 Mo. Le `--no-install-recommends` évite d'embarquer Calc, Impress et Base,
+inutiles ici.
+
+```bash
+# Vérifier le chemin réel du binaire (peut varier selon le paquet)
+which soffice
+```
+
+### 2. Répertoires inscriptibles par www-data
+
+C'est l'étape qui fait échouer la plupart des installations. PHP-FPM tourne sous
+`www-data`, dont le home (`/var/www`) n'est pas inscriptible.
+
+```bash
+# Profil LibreOffice — DOIT exister et appartenir à www-data.
+# www-data ne peut pas le créer lui-même : /var/lib appartient à root.
 sudo mkdir -p /var/lib/attestations/libreoffice
 sudo chown www-data:www-data /var/lib/attestations/libreoffice
 
-# 3. Vérifier que www-data peut lancer LibreOffice
-sudo -u www-data soffice --headless --version
+# Répertoires du home de www-data (supprime les avertissements dconf et
+# permet de lancer `artisan tinker` en tant que www-data pour diagnostiquer)
+sudo mkdir -p /var/www/.config /var/www/.cache /var/www/.local
+sudo chown -R www-data:www-data /var/www/.config /var/www/.cache /var/www/.local
 
-# 4. Test de conversion de bout en bout
+# Contrôle
+ls -ld /var/lib/attestations /var/lib/attestations/libreoffice
 sudo -u www-data soffice --headless \
-  -env:UserInstallation=file:///var/lib/attestations/libreoffice \
-  --convert-to pdf --outdir /tmp \
-  /var/www/regiedeseaux/storage/app/templates/template_attestation.docx
+  -env:UserInstallation=file:///var/lib/attestations/libreoffice --version
 ```
 
-Puis dans le `.env` du serveur :
+La dernière commande doit afficher `LibreOffice 24.2.x.x`. Attention : `--version`
+n'écrit pas dans le profil, **ce test ne prouve donc pas que la conversion fonctionnera**.
+Seul le test de l'étape 4 fait foi.
+
+### 3. Configuration `.env`
 
 ```dotenv
 LIBREOFFICE_PATH=/usr/bin/soffice
@@ -158,34 +186,206 @@ LIBREOFFICE_PROFILE_PATH=/var/lib/attestations/libreoffice
 LIBREOFFICE_TIMEOUT=120
 ```
 
-### Polices
-
-Le modèle d'attestation utilise **Gandhi Sans** pour le corps du texte, absente des dépôts
-Ubuntu. Sans elle, le PDF sera mis en page différemment du document Word :
+Laisser `LIBREOFFICE_PATH` vide active la détection automatique
+(`/usr/bin/soffice`, `/usr/local/bin/soffice`, `/opt/homebrew/bin/soffice`).
+`LIBREOFFICE_PROFILE_PATH` vide retombe sur `storage/app/libreoffice-profile`.
 
 ```bash
+# OBLIGATOIRE : sans ça Laravel continue de lire l'ancien cache de config
+sudo -u www-data php artisan config:cache
+
+# Contrôle : l'application voit-elle la valeur ?
+sudo -u www-data env HOME=/tmp/wwwdata php artisan tinker \
+  --execute="echo config('services.libreoffice.path');"
+```
+
+### 4. Vérification de bout en bout
+
+Ce test appelle **exactement le code que le site exécutera** lors d'une validation —
+binaire, profil, permissions et configuration sont éprouvés d'un seul coup.
+
+```bash
+cd /var/www/regiedeseaux
+
+sudo -u www-data env HOME=/tmp/wwwdata php artisan tinker --execute="\$src = collect(glob(storage_path('app/templates/*.docx')))->first(); \$pdf = app(\App\Services\DocxToPdfConverter::class)->convert(\$src, storage_path('app/tmp-pdf')); echo 'PDF genere : '.\$pdf.' ('.filesize(\$pdf).' octets)', PHP_EOL;"
+```
+
+Sortie attendue :
+
+```
+PDF genere : /var/www/regiedeseaux/storage/app/tmp-pdf/template_1_attestation-standard.pdf (68441 octets)
+```
+
+Le `env HOME=/tmp/wwwdata` ne vaut que pour cette commande : il donne à psysh (le moteur
+de `tinker`) un répertoire inscriptible. Il est inutile si l'étape 2 a été faite.
+
+Récupérer le PDF pour un contrôle visuel, **depuis le poste de travail** :
+
+```bash
+scp administrateur@10.100.20.13:/var/www/regiedeseaux/storage/app/tmp-pdf/*.pdf ~/Desktop/
+```
+
+Puis nettoyer :
+
+```bash
+sudo rm -rf /var/www/regiedeseaux/storage/app/tmp-pdf
+```
+
+### Pièges rencontrés en conditions réelles
+
+| Symptôme | Cause | Correctif |
+|---|---|---|
+| `LibreOffice user installation could not be processed due to missing access rights` | Le répertoire de profil n'existe pas, ou n'appartient pas à `www-data` | Étape 2 |
+| `La conversion en PDF n'a produit aucun fichier` | Le **répertoire de sortie** n'est pas inscriptible par `www-data` — typiquement créé par un test lancé sans `sudo -u www-data` | `sudo rm -rf storage/app/tmp-pdf` puis relancer en `www-data`, qui le recrée |
+| `Writing to directory /var/www/.config/psysh is not allowed` | `tinker` lancé en `www-data` sans home inscriptible | `env HOME=/tmp/wwwdata`, ou étape 2 |
+| `dconf-CRITICAL ... unable to create directory '/var/www/.cache/dconf'` | Home de `www-data` non inscriptible | Cosmétique, sans effet sur la conversion. Étape 2 le supprime |
+| `Warning: failed to launch javaldx - java may not function correctly` | Java absent | Cosmétique : la conversion Writer → PDF n'en a pas besoin |
+
+**À retenir : LibreOffice sort en code 0 même lorsqu'il ne parvient pas à écrire le PDF.**
+C'est pourquoi `DocxToPdfConverter` vérifie l'existence du fichier produit, et pourquoi le
+message « aucun fichier produit » désigne le plus souvent un problème de droits sur le
+répertoire de sortie, et non un défaut du document source.
+
+### Polices
+
+Le modèle d'attestation déclare **Gandhi Sans** (corps du texte, 27 occurrences) et
+**Arial** (5 occurrences).
+
+Constat du 14/09/2026 : **Gandhi Sans n'est installée ni sur le serveur, ni sur les postes
+de travail.** Les attestations Word produites jusqu'ici sont donc déjà rendues avec une
+police de substitution choisie par Word. Installer Gandhi Sans sur le seul serveur rendrait
+le PDF *différent* de ce qui est affiché dans Word — l'inverse du but recherché.
+
+Deux options cohérentes :
+
+1. **Recommandé — normaliser le modèle sur Arial.** `fonts-liberation` fournit Liberation
+   Sans, dont les métriques sont identiques à Arial : le PDF devient rigoureusement
+   conforme au rendu Word, sans rien installer. La modification se fait dans Word, sur le
+   `.docx`, pas dans le code.
+2. **Conserver Gandhi Sans** — il faut alors l'installer *partout* : serveur et postes
+   éditant le modèle. Police téléchargeable gratuitement (Font Squirrel, CTAN), utilisable
+   en usage commercial ; sa licence interdit la modification et la revente.
+
+```bash
+# Option 2 uniquement — installation côté serveur
 sudo mkdir -p /usr/local/share/fonts/attestations
 sudo cp GandhiSans*.ttf /usr/local/share/fonts/attestations/
 sudo chmod 644 /usr/local/share/fonts/attestations/*
 sudo fc-cache -f
 
-# Vérifier
-fc-list | grep -i gandhi
+# Vérifier ce que le serveur a réellement
+fc-list | grep -ci gandhi      # 0 = absente
+fc-list | grep -ci liberation  # > 0 grâce à fonts-liberation
 ```
 
-`fonts-liberation` couvre Arial, Times New Roman et Courier New avec des métriques
-identiques. Tahoma et Corbel (usage marginal : un style et le thème) restent substituées.
+Tahoma et Corbel (usage marginal : un style et le thème) restent substituées dans tous les
+cas.
 
 ### Configuration applicative
 
+Ces trois points ne se font pas en ligne de commande mais dans l'interface d'administration.
+**Le workflow ne fonctionne pas sans eux.**
+
 1. **Désigner les superviseurs** : Administration → Utilisateurs → cocher « Superviseur ».
-   Sans superviseur désigné, l'envoi en validation ne notifie personne.
+   Sans superviseur désigné, l'envoi en validation bascule bien la demande en « en attente »,
+   mais **personne n'est notifié** : un simple avertissement part dans les logs et la demande
+   reste bloquée.
 2. **Ajouter la signature des signataires** : Référentiels → Agents → champ « Image de
    signature » (PNG à fond transparent recommandé).
 3. **Ajouter la variable `${signature}` dans le modèle Word**, à l'emplacement où la
    signature doit apparaître, puis resynchroniser les variables du modèle depuis la page
-   Templates. Sans cette variable, la validation fonctionne mais aucune signature n'est
-   apposée.
+   Templates. Sans cette variable, la validation fonctionne et le PDF est généré, mais
+   aucune signature n'est apposée.
+
+Contrôle rapide du point 1 :
+
+```bash
+sudo -u www-data env HOME=/tmp/wwwdata php artisan tinker \
+  --execute="echo App\Models\User::where('is_supervisor', true)->count().' superviseur(s)';"
+```
+
+---
+
+## Pièges de déploiement récurrents
+
+### Permissions de fichiers signalées par git
+
+Après un `chmod -R 775 storage/ bootstrap/cache/`, `git status` affiche une dizaine de
+`.gitignore` modifiés — ce sont uniquement des changements de bits de permission
+(644 → 755), sans modification de contenu. Ils risquent de bloquer un futur `git pull`.
+
+```bash
+cd /var/www/regiedeseaux
+git config core.fileMode false
+```
+
+Réglage local à ce dépôt, sur ce serveur. Ne modifie aucun fichier ni aucune permission
+réelle.
+
+### `composer install` republie les assets Filament
+
+`composer install` déclenche `filament:upgrade`, qui réécrit `public/js/`, `public/css/` et
+`public/fonts/`, **et vide les caches config/route/view**. Lancé en tant
+qu'`administrateur`, ces fichiers ne sont plus accessibles à Nginx.
+
+```bash
+composer install --no-dev --optimize-autoloader
+
+# Réparer derrière
+sudo chown -R www-data:www-data storage/ bootstrap/cache/ public/js/ public/css/ public/fonts/
+sudo -u www-data php artisan config:cache
+sudo -u www-data php artisan route:cache
+sudo -u www-data php artisan view:cache
+```
+
+Les avertissements `Could not scan for classes inside ...` pendant la désinstallation des
+paquets de dev sont normaux : le classmap se régénère pendant que les dossiers
+disparaissent. Seule compte la ligne `Generating optimized autoload files`.
+
+### Cache de composants Filament obsolète — erreur 500 sur toutes les actions
+
+Constaté le 14/09/2026. Si `bootstrap/cache/filament/panels/admin.php` existe, il fige la liste
+des composants Livewire du panel. **Toute page Filament livrée après la création de ce cache
+s'affiche, mais lève `Livewire\Exceptions\ComponentNotFoundException` au premier clic** sur
+l'un de ses boutons — le symptôme est trompeur : la page semble fonctionner.
+
+```bash
+cd /var/www/regiedeseaux
+sudo -u www-data php artisan filament:clear-cached-components
+
+# Si tu re-caches pour la performance, fais-le APRÈS chaque livraison, jamais avant
+sudo -u www-data php artisan filament:cache-components
+```
+
+À exécuter à chaque déploiement ajoutant une page, une ressource ou un widget Filament.
+
+### Assets non recompilés — mise en page cassée sans erreur
+
+Constaté le 14/09/2026 sur la page de validation. Les classes Tailwind utilisées par une vue
+Blade personnalisée n'existent dans le CSS que si `npm run build` a été relancé **après**
+l'écriture de la vue. Sinon la page s'affiche sans erreur, mais sans mise en page : l'aperçu
+PDF de la validation apparaissait en vignette de 300×150 px.
+
+Les assets étant commités au dépôt, le défaut se propage tel quel en production. Le contrôle :
+
+```bash
+# En local, après toute modification d'une vue Blade sous resources/views/filament/
+npm run build
+
+# Vérifier qu'une classe caractéristique de la nouvelle vue est bien présente
+grep -c "80vh" public/build/assets/theme-*.css   # doit être > 0
+```
+
+Attention aux greps : les classes à valeur arbitraire sont échappées dans le CSS
+(`.h-\[80vh\]`). Chercher la valeur seule (`80vh`) évite les faux négatifs.
+
+### `--optimize-autoloader` et les nouvelles classes
+
+Le projet est déployé avec `--optimize-autoloader`, donc le classmap est figé. **Toute
+livraison ajoutant des classes exige un `composer install --no-dev --optimize-autoloader`**,
+même si aucune dépendance n'a changé. Sans lui, les nouvelles classes restent introuvables
+et le site renvoie une erreur 500. Les migrations, elles, passent sans problème — ce qui
+peut donner l'illusion que le déploiement est complet.
 
 ## Checklist de Déploiement
 
@@ -193,9 +393,22 @@ identiques. Tahoma et Corbel (usage marginal : un style et le thème) restent su
 - [ ] Code commité avec les assets buildés
 - [ ] Push vers GitHub effectué
 - [ ] `git pull` sur le serveur
+- [ ] `composer install --no-dev --optimize-autoloader` si de nouvelles classes ont été livrées
+- [ ] `sudo -u www-data php artisan filament:clear-cached-components` si une page/ressource Filament a été livrée
+- [ ] `sudo -u www-data php artisan migrate --force` si nouvelles migrations
 - [ ] Caches Laravel vidés **AVEC** `sudo -u www-data`
-- [ ] Permissions corrigées si nécessaire (`sudo chown -R www-data:www-data storage/ public/build/`)
+- [ ] Permissions corrigées si nécessaire (`sudo chown -R www-data:www-data storage/ bootstrap/cache/ public/build/ public/js/ public/css/ public/fonts/`)
 - [ ] Application testée en production
+
+### Spécifique au workflow de validation des attestations
+
+- [ ] LibreOffice installé et lançable par `www-data`
+- [ ] Profil `/var/lib/attestations/libreoffice` créé et possédé par `www-data`
+- [ ] Variables `LIBREOFFICE_*` présentes dans le `.env`, suivies d'un `config:cache`
+- [ ] Test de conversion de bout en bout concluant (étape 4 de la section LibreOffice)
+- [ ] Au moins un utilisateur coché « Superviseur »
+- [ ] Image de signature renseignée sur les agents signataires
+- [ ] Variable `${signature}` présente dans le modèle Word et variables resynchronisées
 
 ## Aide-Mémoire pour la Production
 

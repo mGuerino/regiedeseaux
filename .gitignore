@@ -23,3 +23,20 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Instantanés d'accessibilité laissés à la racine par les MCP de pilotage
+# navigateur. Listés nommément : un motif /*.yml masquerait aussi les fichiers
+# de configuration légitimes (docker-compose.yml, pint.yml...).
+/create-form-errors.yml
+/create-form.yml
+/create2.yml
+/create3.yml
+/par1.yml
+/par2.yml
+/sect2.yml
+/sections.yml
+/table.yml
+/v2-create.yml
+/v2-s1.yml
+/v2-s2.yml
+/v2-s3.yml
