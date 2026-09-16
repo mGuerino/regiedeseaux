@@ -112,7 +112,11 @@ class RequestResource extends Resource
 
                 // Relations pour les colonnes cachées par défaut
                 // Chargées uniquement si visibles, mais préchargées pour éviter N+1
-                'signatory:id,name',  // Pour signatory.name (toggleable hidden)
+                // title et signature_path sont indispensables hors de la table :
+                // la page de validation et les messages d'envoi interrogent
+                // hasSignature(), qui répondait « non » sur une relation amputée
+                // alors que la signature était bien apposée sur le document.
+                'signatory:id,name,title,signature_path',
                 'certifier:id,name',  // Pour certifier.name (toggleable hidden)
                 'contactPerson:id,name',  // Pour contactPerson.name (toggleable hidden)
                 'followedByUser:id,name,first_name',  // Pour followedByUser.name

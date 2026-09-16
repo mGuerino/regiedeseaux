@@ -863,6 +863,33 @@ class AttestationValidationWorkflowTest extends TestCase
         $this->assertSame([], $template->getUnmappedVariables());
     }
 
+    public function test_the_validation_page_sees_the_signatory_signature(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        app(AttestationValidationService::class)->sendForValidation($request, $agent);
+
+        $this->actingAsPanelUser($supervisor);
+
+        // La page lit la demande via la requête du resource, qui ne préchargeait
+        // du signataire que l'identifiant et le nom : hasSignature() répondait
+        // « non » et l'écran annonçait une absence de signature alors qu'elle
+        // était bien apposée sur le document.
+        $record = Livewire::test(ValidateRequest::class, ['record' => $request->id])
+            ->instance()
+            ->getRecord();
+
+        $this->assertTrue(
+            $record->signatory->hasSignature(),
+            'La page de validation doit voir l\'image de signature du signataire.'
+        );
+        $this->assertNotNull($record->signatory->title);
+    }
+
     public function test_regenerating_a_validated_attestation_keeps_the_signature(): void
     {
         $agent = $this->createUser('agent@example.test');
