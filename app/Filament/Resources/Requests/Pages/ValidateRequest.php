@@ -54,9 +54,19 @@ class ValidateRequest extends Page
      */
     public function getPreviewUrl(): ?string
     {
-        return $this->getPreviewDocument()
-            ? route('requests.attestation.preview', ['request' => $this->record->id])
-            : null;
+        $document = $this->getPreviewDocument();
+
+        if (! $document) {
+            return null;
+        }
+
+        // L'horodatage du document force le navigateur à recharger l'aperçu
+        // après la validation, pour que le superviseur voie l'attestation signée
+        // et non la version qu'il vient de valider.
+        return route('requests.attestation.preview', [
+            'request' => $this->record->id,
+            'v' => $document->updated_at?->timestamp,
+        ]);
     }
 
     public function getPreviewDocument(): ?Document
@@ -92,6 +102,8 @@ class ValidateRequest extends Page
             ->color('success')
             ->visible(fn () => $this->record->isAwaitingValidation())
             ->requiresConfirmation()
+            ->modalIcon(Heroicon::OutlinedCheckBadge)
+            ->modalIconColor('success')
             ->modalHeading("Valider l'attestation")
             ->modalDescription(function (): string {
                 $signatory = $this->record->signatory;

@@ -12,7 +12,27 @@ class RequestsTimelineChart extends ChartWidget
 {
     use HasFiltersSchema;
 
-    protected ?string $heading = 'Évolution des demandes';
+    /**
+     * Périodes proposées, reprises dans le titre pour que le graphique dise
+     * toujours sur quoi il porte.
+     *
+     * @var array<string, string>
+     */
+    public const PERIODS = [
+        'week' => 'Cette semaine',
+        'month' => 'Ce mois',
+        'quarter' => 'Ce trimestre',
+        'year' => 'Cette année',
+        'last_12_months' => '12 derniers mois',
+        'last_year' => 'Année dernière',
+    ];
+
+    public function getHeading(): string
+    {
+        $period = $this->filters['period'] ?? 'last_12_months';
+
+        return 'Évolution des demandes — '.mb_strtolower(self::PERIODS[$period] ?? self::PERIODS['last_12_months']);
+    }
 
     protected static ?int $sort = 3;
 
@@ -47,14 +67,10 @@ class RequestsTimelineChart extends ChartWidget
         return $schema->components([
             Select::make('period')
                 ->label('Période')
-                ->options([
-                    'week' => 'Cette semaine',
-                    'month' => 'Ce mois',
-                    'quarter' => 'Ce trimestre',
-                    'year' => 'Cette année',
-                    'last_year' => 'Année dernière',
-                ])
-                ->default('year'),
+                ->options(self::PERIODS)
+                // Douze mois glissants plutôt que l'année civile : en début
+                // d'année, « cette année » ne montrait presque rien.
+                ->default('last_12_months'),
 
             Select::make('status')
                 ->label('Statut')
@@ -70,7 +86,7 @@ class RequestsTimelineChart extends ChartWidget
 
     protected function getTimelineData(): array
     {
-        $period = $this->filters['period'] ?? 'year';
+        $period = $this->filters['period'] ?? 'last_12_months';
 
         return match ($period) {
             'week' => $this->getWeekData(),
@@ -78,7 +94,8 @@ class RequestsTimelineChart extends ChartWidget
             'quarter' => $this->getQuarterData(),
             'year' => $this->getYearData(),
             'last_year' => $this->getLastYearData(),
-            default => $this->getYearData(),
+            'last_12_months' => $this->getLastTwelveMonthsData(),
+            default => $this->getLastTwelveMonthsData(),
         };
     }
 
@@ -139,6 +156,37 @@ class RequestsTimelineChart extends ChartWidget
             if ($status !== 'all') {
                 $query->where('request_status', $status);
             }
+            $values[] = $query->count();
+        }
+
+        return ['labels' => $labels, 'values' => $values];
+    }
+
+    /**
+     * Les douze mois glissants, mois courant inclus.
+     */
+    protected function getLastTwelveMonthsData(): array
+    {
+        $status = $this->filters['status'] ?? 'all';
+        $labels = [];
+        $values = [];
+
+        // Reculer depuis le premier du mois : `now()->subMonths()` déborde sur
+        // les fins de mois (le 31 mars moins un mois donne le 3 mars), ce qui
+        // afficherait deux fois certains mois et en escamoterait d'autres.
+        $currentMonth = now()->startOfMonth();
+
+        for ($i = 11; $i >= 0; $i--) {
+            $month = $currentMonth->copy()->subMonths($i);
+            $labels[] = $month->translatedFormat('M Y');
+
+            $query = Request::whereMonth('request_date', $month->month)
+                ->whereYear('request_date', $month->year);
+
+            if ($status !== 'all') {
+                $query->where('request_status', $status);
+            }
+
             $values[] = $query->count();
         }
 

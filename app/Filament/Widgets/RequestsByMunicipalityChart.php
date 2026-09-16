@@ -13,7 +13,28 @@ class RequestsByMunicipalityChart extends ChartWidget
 {
     use HasFiltersSchema;
 
-    protected ?string $heading = 'Demandes par commune';
+    /**
+     * Périodes proposées, reprises dans le titre pour que le graphique dise
+     * toujours ce qu'il compte.
+     *
+     * @var array<string, string>
+     */
+    public const PERIODS = [
+        'today' => "Aujourd'hui",
+        'week' => 'Cette semaine',
+        'month' => 'Ce mois',
+        'quarter' => 'Ce trimestre',
+        'year' => 'Cette année',
+        'last_12_months' => '12 derniers mois',
+        'all' => 'Toutes les périodes',
+    ];
+
+    public function getHeading(): string
+    {
+        $period = $this->filters['period'] ?? 'last_12_months';
+
+        return 'Demandes par commune — '.mb_strtolower(self::PERIODS[$period] ?? self::PERIODS['last_12_months']);
+    }
 
     protected static ?int $sort = 2;
 
@@ -54,15 +75,11 @@ class RequestsByMunicipalityChart extends ChartWidget
         return $schema->components([
             Select::make('period')
                 ->label('Période')
-                ->options([
-                    'today' => "Aujourd'hui",
-                    'week' => 'Cette semaine',
-                    'month' => 'Ce mois',
-                    'quarter' => 'Ce trimestre',
-                    'year' => 'Cette année',
-                    'all' => 'Toutes les périodes',
-                ])
-                ->default('year'),
+                ->options(self::PERIODS)
+                // « Cette année » par défaut affichait quelques demandes face à
+                // un total de plusieurs milliers, laissant croire à un graphique
+                // vide. Douze mois glissants montrent une activité réelle.
+                ->default('last_12_months'),
 
             Select::make('status')
                 ->label('Statut')
@@ -78,7 +95,7 @@ class RequestsByMunicipalityChart extends ChartWidget
 
     protected function getRequestsByMunicipality()
     {
-        $period = $this->filters['period'] ?? 'year';
+        $period = $this->filters['period'] ?? 'last_12_months';
         $status = $this->filters['status'] ?? 'all';
 
         $query = Request::select('municipality_code', DB::raw('count(*) as total'))
@@ -98,8 +115,9 @@ class RequestsByMunicipalityChart extends ChartWidget
                 ->whereYear('request_date', now()->year),
             'quarter' => $query->whereBetween('request_date', [now()->startOfQuarter(), now()->endOfQuarter()]),
             'year' => $query->whereYear('request_date', now()->year),
+            'last_12_months' => $query->where('request_date', '>=', now()->startOfMonth()->subMonths(11)),
             'all' => null,
-            default => $query->whereYear('request_date', now()->year),
+            default => $query->where('request_date', '>=', now()->startOfMonth()->subMonths(11)),
         };
 
         return $query->groupBy('municipality_code')

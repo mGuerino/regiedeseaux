@@ -9,7 +9,7 @@
             @if ($previewUrl)
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
                     <iframe
-                        src="{{ $previewUrl }}#view=FitH"
+                        src="{{ $previewUrl }}#view=FitH&amp;navpanes=0"
                         title="Aperçu de l'attestation {{ $this->record->reference }}"
                         class="h-[80vh] w-full"
                     ></iframe>

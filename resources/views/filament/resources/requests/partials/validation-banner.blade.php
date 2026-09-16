@@ -1,6 +1,9 @@
 @php
     $record = $getRecord();
     $status = $record?->validation_status;
+    // Résolu seulement quand le bandeau s'affiche : sinon chaque demande sans
+    // validation paierait une requête pour une liste qui n'est jamais rendue.
+    $notified = $status ? $record->validationNotifiedUsers() : collect();
 @endphp
 
 @if ($status)
@@ -27,6 +30,16 @@
                 @endif
             </p>
         </div>
+
+        @if ($notified->isNotEmpty())
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Email envoyé à
+                @foreach ($notified as $supervisor)
+                    <span class="font-medium text-gray-950 dark:text-white">{{ $supervisor->getFilamentName() }}</span>@if (! $loop->last),@endif
+                @endforeach
+                — tous les superviseurs peuvent valider cette attestation.
+            </p>
+        @endif
 
         @if ($record->rejection_reason)
             <div class="mt-3 rounded-lg bg-white/70 p-3 dark:bg-gray-900/40">

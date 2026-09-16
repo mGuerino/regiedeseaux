@@ -21,10 +21,14 @@ class AttestationValidationService
      * Envoyer une attestation en validation : l'attestation est régénérée, son
      * PDF de consultation est produit, puis les superviseurs sont notifiés.
      *
+     * @param  list<int>|null  $supervisorIds  Superviseurs à prévenir. Par défaut
+     *                                         tous les superviseurs joignables.
+     *                                         La validation reste ouverte à tous.
+     *
      * @throws \App\Exceptions\PdfConversionException
      * @throws \RuntimeException si l'attestation Word n'a pas pu être générée
      */
-    public function sendForValidation(Request $request, User $requestedBy): Document
+    public function sendForValidation(Request $request, User $requestedBy, ?array $supervisorIds = null): Document
     {
         $wordDocument = GenerateWordAction::generate($request, notify: false);
 
@@ -34,18 +38,39 @@ class AttestationValidationService
 
         $pdfDocument = GenerateWordAction::generatePdfFrom($wordDocument, $request);
 
+        $recipients = $this->resolveRecipients($supervisorIds);
+
         $request->update([
             'validation_status' => ValidationStatus::Pending,
             'validation_requested_at' => now(),
             'validation_requested_by' => $requestedBy->id,
+            'validation_notified_to' => $recipients->pluck('id')->all(),
             'validated_at' => null,
             'validated_by' => null,
             'rejection_reason' => null,
         ]);
 
-        $this->notifySupervisors($request, $requestedBy);
+        $this->notifySupervisors($request, $requestedBy, $recipients);
 
         return $pdfDocument;
+    }
+
+    /**
+     * Superviseurs effectivement prévenus : ceux que l'agent a cochés, restreints
+     * à ceux qui restent joignables, ou tous à défaut de sélection.
+     *
+     * @param  list<int>|null  $supervisorIds
+     * @return \Illuminate\Database\Eloquent\Collection<int, User>
+     */
+    protected function resolveRecipients(?array $supervisorIds): \Illuminate\Database\Eloquent\Collection
+    {
+        $query = $this->notifiableSupervisors();
+
+        if ($supervisorIds !== null && $supervisorIds !== []) {
+            $query->whereIn('id', $supervisorIds);
+        }
+
+        return $query->orderBy('name')->get();
     }
 
     /**
@@ -136,6 +161,17 @@ class AttestationValidationService
     }
 
     /**
+     * Superviseurs qui recevront la demande de validation, pour les annoncer à
+     * l'agent avant l'envoi.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, User>
+     */
+    public function supervisorsToNotify(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->notifiableSupervisors()->orderBy('name')->get();
+    }
+
+    /**
      * Nombre de superviseurs effectivement prévenus lors du dernier envoi en
      * validation. Un envoi qui échoue (SMTP indisponible) ne doit pas être
      * annoncé à l'agent comme réussi.
@@ -157,13 +193,11 @@ class AttestationValidationService
     }
 
     /**
-     * Prévenir par email tous les superviseurs disposant d'une adresse.
+     * Prévenir par email les superviseurs retenus pour cet envoi.
      */
-    protected function notifySupervisors(Request $request, User $requestedBy): void
+    protected function notifySupervisors(Request $request, User $requestedBy, \Illuminate\Database\Eloquent\Collection $supervisors): void
     {
         $this->notifiedSupervisorsCount = 0;
-
-        $supervisors = $this->notifiableSupervisors()->get();
 
         if ($supervisors->isEmpty()) {
             Log::warning('Aucun superviseur à notifier pour la validation d\'attestation', [

@@ -46,8 +46,7 @@ class RequestsOverview extends StatsOverviewWidget
         $topMunicipality = $this->applyStatusFilter(Request::query())
             ->select('municipality_code', DB::raw('count(*) as total'))
             ->with('municipality')
-            ->whereMonth('request_date', now()->month)
-            ->whereYear('request_date', now()->year)
+            ->where('request_date', '>=', now()->startOfMonth()->subMonths(11))
             ->groupBy('municipality_code')
             ->orderByDesc('total')
             ->first();
@@ -57,7 +56,7 @@ class RequestsOverview extends StatsOverviewWidget
 
         return [
             Stat::make('Total des demandes', $totalRequests)
-                ->description('Toutes les demandes enregistrées')
+                ->description('Historique complet, toutes années confondues')
                 ->descriptionIcon('heroicon-o-document-text')
                 ->color('primary'),
 
@@ -68,12 +67,12 @@ class RequestsOverview extends StatsOverviewWidget
                 ->chart($this->getMonthlyChartData()),
 
             Stat::make('Demandes cette année', $thisYearRequests)
-                ->description(now()->year)
+                ->description('Depuis le 1er janvier '.now()->year)
                 ->descriptionIcon('heroicon-o-calendar')
                 ->color('info'),
 
             Stat::make('Commune la plus active', $topMunicipalityName)
-                ->description("{$topMunicipalityCount} demandes ce mois")
+                ->description($topMunicipalityCount.' '.str('demande')->plural($topMunicipalityCount).' sur 12 mois')
                 ->descriptionIcon('heroicon-o-map-pin')
                 ->color('warning'),
         ];

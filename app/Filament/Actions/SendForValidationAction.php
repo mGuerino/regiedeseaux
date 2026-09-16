@@ -4,8 +4,10 @@ namespace App\Filament\Actions;
 
 use App\Exceptions\PdfConversionException;
 use App\Models\Request;
+use App\Models\User;
 use App\Services\AttestationValidationService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
@@ -14,16 +16,38 @@ class SendForValidationAction
 {
     public static function make(): Action
     {
+        // Chaque rendu de la modale demandait la liste des superviseurs quatre
+        // fois (contenu, options, cochage par défaut, bouton d'envoi) : elle est
+        // résolue une seule fois par requête HTTP.
+        $supervisors = null;
+        $supervisorsToNotify = function () use (&$supervisors): \Illuminate\Database\Eloquent\Collection {
+            return $supervisors ??= app(AttestationValidationService::class)->supervisorsToNotify();
+        };
+
         return Action::make('send_for_validation')
             ->label('Envoyer en validation')
-            ->icon(Heroicon::OutlinedPaperClip)
+            ->icon(Heroicon::OutlinedPaperAirplane)
             ->color('warning')
             ->visible(fn ($record) => $record->canBeSentForValidation())
-            ->requiresConfirmation()
+            // Pas de requiresConfirmation() : la modale porte le choix des
+            // destinataires, et le sous-titre « Êtes-vous sûr ? » qui l'accompagne
+            // n'apporte rien devant un formulaire explicite.
+            ->modalIcon(Heroicon::OutlinedPaperAirplane)
+            ->modalIconColor('warning')
             ->modalHeading('Envoyer l\'attestation en validation')
-            ->modalDescription(fn ($record) => "L'attestation de la demande {$record->reference} va être générée puis soumise aux superviseurs, qui recevront un email leur permettant de la consulter et de la valider.")
+            // Annoncer nommément les destinataires : le superviseur n'est pas le
+            // même d'un site à l'autre, et l'agent doit pouvoir vérifier avant
+            // d'envoyer.
+            ->modalContent(fn ($record) => view('filament.actions.send-for-validation-modal', [
+                'reference' => $record->reference,
+                'supervisors' => $supervisorsToNotify(),
+            ]))
+            ->schema(self::recipientsSchema($supervisorsToNotify))
+            // Sans destinataire, l'envoi serait de toute façon refusé : autant
+            // ne pas proposer de confirmer.
+            ->modalSubmitAction(fn () => $supervisorsToNotify()->isNotEmpty() ? null : false)
             ->modalSubmitActionLabel('Envoyer en validation')
-            ->action(function ($record) {
+            ->action(function ($record, array $data) {
                 $service = app(AttestationValidationService::class);
 
                 // Contrôle préalable : sans superviseur joignable, l'envoi
@@ -42,7 +66,7 @@ class SendForValidationAction
                 }
 
                 try {
-                    $service->sendForValidation($record, Auth::user());
+                    $service->sendForValidation($record, Auth::user(), $data['supervisor_ids'] ?? null);
                 } catch (PdfConversionException $e) {
                     Notification::make()
                         ->title('Aperçu PDF indisponible')
@@ -67,6 +91,32 @@ class SendForValidationAction
     }
 
     /**
+     * Choix des superviseurs à prévenir. Tous sont cochés par défaut : la liste
+     * sert à cibler une relance, pas à restreindre qui peut valider.
+     *
+     * @param  \Closure(): \Illuminate\Database\Eloquent\Collection<int, User>  $supervisorsToNotify
+     * @return array<int, \Filament\Forms\Components\CheckboxList>
+     */
+    private static function recipientsSchema(\Closure $supervisorsToNotify): array
+    {
+        return [
+            CheckboxList::make('supervisor_ids')
+                ->label('Prévenir par email')
+                ->options(fn () => $supervisorsToNotify()
+                    ->mapWithKeys(fn (User $supervisor) => [
+                        $supervisor->id => $supervisor->getFilamentName().' — '.$supervisor->email,
+                    ])
+                    ->all())
+                ->default(fn () => $supervisorsToNotify()->pluck('id')->all())
+                ->required()
+                ->minItems(1)
+                ->bulkToggleable()
+                ->visible(fn () => $supervisorsToNotify()->isNotEmpty())
+                ->helperText('Tous les superviseurs pourront valider l\'attestation, quels que soient les destinataires de l\'email.'),
+        ];
+    }
+
+    /**
      * Rendre compte de l'envoi en un seul message, plutôt qu'en empilant une
      * notification par point de vigilance.
      */
@@ -76,9 +126,10 @@ class SendForValidationAction
 
         // Des superviseurs existent — contrôlé avant l'envoi — mais aucun mail
         // n'est parti. L'attestation est bien en attente : elle reste visible
-        // dans l'onglet « À valider », il ne faut donc pas la renvoyer.
+        // dans l'indicateur « En attente de validation », il ne faut donc pas
+        // la renvoyer.
         if ($notifiedSupervisors === 0) {
-            $warnings[] = 'Aucun email n\'a pu être envoyé aux superviseurs : vérifiez la configuration d\'envoi. L\'attestation reste visible dans leur onglet « À valider ».';
+            $warnings[] = 'Aucun email n\'a pu être envoyé aux superviseurs : vérifiez la configuration d\'envoi. L\'attestation reste comptée dans l\'indicateur « En attente de validation » de la liste des demandes.';
         }
 
         if (! $record->signatory) {

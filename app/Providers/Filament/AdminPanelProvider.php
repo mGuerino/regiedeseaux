@@ -13,10 +13,7 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup as FilamentNavigationGroup;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -36,8 +33,25 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogo(asset('images/logo.png'))
             ->brandLogoHeight('5rem')
             ->viteTheme('resources/css/filament/admin/theme.css')
+            // Palette explicite, dans la teinte du logo. Passer le seul #003143
+            // laissait Filament en déduire une échelle aux boutons cyan vif ;
+            // mais #003143 en aplat est trop sombre pour se lire comme du bleu.
+            // Les boutons prennent donc un bleu franc (600), et le bleu de la
+            // marque revient dans les tons foncés (900).
             ->colors([
-                'primary' => '#003143',
+                'primary' => [
+                    50 => '#eff9fd',
+                    100 => '#d9effa',
+                    200 => '#b3dff5',
+                    300 => '#7fc5e6',
+                    400 => '#409ec6',
+                    500 => '#0080aa',
+                    600 => '#006289',
+                    700 => '#004e6f',
+                    800 => '#003f59',
+                    900 => '#003248',
+                    950 => '#001f2f',
+                ],
                 'secondary' => '#ff9900',
             ])
             ->maxContentWidth(Width::ScreenTwoExtraLarge) // Largeur maximale augmentée pour les tables
@@ -48,6 +62,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             /* ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets') */
             ->widgets([
+                // Le travail à faire d'abord, l'activité passée ensuite.
+                \App\Filament\Widgets\ValidationWorkloadOverview::class,
                 \App\Filament\Widgets\RequestsOverview::class,
                 \App\Filament\Widgets\RequestsByMunicipalityChart::class,
                 \App\Filament\Widgets\RequestsTimelineChart::class,

@@ -4,8 +4,6 @@ namespace App\Console\Commands;
 
 use App\Models\DocumentTemplate;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Storage;
-use PhpOffice\PhpWord\TemplateProcessor;
 
 class SyncTemplates extends Command
 {
@@ -42,7 +40,7 @@ class SyncTemplates extends Command
             $this->line("  • Template #{$template->id}: {$template->name}");
 
             // Vérifier si le fichier physique existe
-            if (!$template->fileExists()) {
+            if (! $template->fileExists()) {
                 $issue = "    ❌ File missing: {$template->file_path}";
                 $this->error($issue);
                 $issues[] = [
@@ -51,49 +49,62 @@ class SyncTemplates extends Command
                     'template_name' => $template->name,
                     'file_path' => $template->file_path,
                 ];
+
                 continue;
             }
 
-            $this->line("    ✓ File exists");
+            $this->line('    ✓ File exists');
 
-            // Vérifier si les variables sont extraites
-            if (empty($template->variables)) {
-                $issue = "    ⚠️  No variables extracted";
+            // Extraire les variables du fichier pour les comparer à celles connues :
+            // un modèle réimporté sur le disque change de variables sans que la base
+            // en soit avertie.
+            $fileVariables = $template->extractVariables();
+            $knownVariables = $template->variables ?? [];
+
+            // Un modèle sans aucune variable est toujours une anomalie, même
+            // quand la base est d'accord avec le fichier : c'est le cas d'un
+            // fichier illisible, que la seule comparaison ne signalerait pas.
+            $hasDrifted = array_values($fileVariables) !== array_values($knownVariables)
+                || $fileVariables === [];
+
+            if ($hasDrifted) {
+                $issue = empty($knownVariables)
+                    ? '    ⚠️  No variables extracted'
+                    : '    ⚠️  Variables out of sync with the file';
                 $this->warn($issue);
 
                 if ($this->option('fix')) {
-                    try {
-                        $fullPath = $template->getFullPath();
-                        $processor = new TemplateProcessor($fullPath);
-                        $variables = $processor->getVariables();
-
-                        $template->update(['variables' => $variables]);
-
-                        $this->info("    ✓ Extracted " . count($variables) . " variables");
-                        $fixed[] = [
-                            'template_id' => $template->id,
-                            'template_name' => $template->name,
-                            'action' => 'extracted_variables',
-                            'count' => count($variables),
-                        ];
-                    } catch (\Exception $e) {
-                        $this->error("    ❌ Failed to extract variables: {$e->getMessage()}");
+                    // extractVariables() renvoie un tableau vide aussi bien pour un
+                    // modèle sans placeholder que pour un fichier illisible : écraser
+                    // une liste connue par ce vide effacerait le mapping du modèle.
+                    if ($fileVariables === []) {
+                        $this->error('    ❌ Failed to extract variables: the file returned none, keeping the known list');
                         $issues[] = [
                             'type' => 'extraction_failed',
                             'template_id' => $template->id,
                             'template_name' => $template->name,
-                            'error' => $e->getMessage(),
+                            'error' => 'Aucune variable extraite du fichier : modèle illisible ou corrompu.',
+                        ];
+                    } else {
+                        $template->update(['variables' => $fileVariables]);
+
+                        $this->info('    ✓ Extracted '.count($fileVariables).' variables');
+                        $fixed[] = [
+                            'template_id' => $template->id,
+                            'template_name' => $template->name,
+                            'action' => 'extracted_variables',
+                            'count' => count($fileVariables),
                         ];
                     }
                 } else {
                     $issues[] = [
-                        'type' => 'no_variables',
+                        'type' => $fileVariables === [] ? 'no_variables' : 'variables_out_of_sync',
                         'template_id' => $template->id,
                         'template_name' => $template->name,
                     ];
                 }
             } else {
-                $this->line("    ✓ " . count($template->variables) . " variables found");
+                $this->line('    ✓ '.count($knownVariables).' variables found');
             }
 
             $this->newLine();
@@ -105,7 +116,7 @@ class SyncTemplates extends Command
         $dbFilePaths = $templates->pluck('file_path')->toArray();
 
         foreach ($files as $file) {
-            if (!in_array($file, $dbFilePaths)) {
+            if (! in_array($file, $dbFilePaths)) {
                 $this->warn("  • Orphaned file: {$file}");
                 $issues[] = [
                     'type' => 'orphaned_file',
@@ -113,9 +124,9 @@ class SyncTemplates extends Command
                 ];
 
                 if ($this->option('fix')) {
-                    if ($this->confirm("    Delete this orphaned file?")) {
+                    if ($this->confirm('    Delete this orphaned file?')) {
                         DocumentTemplate::disk()->delete($file);
-                        $this->info("    ✓ Deleted");
+                        $this->info('    ✓ Deleted');
                         $fixed[] = [
                             'action' => 'deleted_orphaned_file',
                             'file_path' => $file,
@@ -129,10 +140,10 @@ class SyncTemplates extends Command
 
         // 3. Rapport final
         $this->info('📊 Summary:');
-        $this->line("  • Total templates in database: " . $templates->count());
-        $this->line("  • Total files on disk: " . count($files));
-        $this->line("  • Issues found: " . count($issues));
-        $this->line("  • Issues fixed: " . count($fixed));
+        $this->line('  • Total templates in database: '.$templates->count());
+        $this->line('  • Total files on disk: '.count($files));
+        $this->line('  • Issues found: '.count($issues));
+        $this->line('  • Issues fixed: '.count($fixed));
 
         if (count($issues) > 0) {
             $this->newLine();
@@ -146,6 +157,9 @@ class SyncTemplates extends Command
                     case 'no_variables':
                         $this->line("  • No variables for template #{$issue['template_id']} ({$issue['template_name']})");
                         break;
+                    case 'variables_out_of_sync':
+                        $this->line("  • Variables out of sync with the file for template #{$issue['template_id']} ({$issue['template_name']})");
+                        break;
                     case 'orphaned_file':
                         $this->line("  • Orphaned file: {$issue['file_path']}");
                         break;
@@ -155,7 +169,7 @@ class SyncTemplates extends Command
                 }
             }
 
-            if (!$this->option('fix')) {
+            if (! $this->option('fix')) {
                 $this->newLine();
                 $this->info('💡 Run with --fix to automatically fix issues');
             }

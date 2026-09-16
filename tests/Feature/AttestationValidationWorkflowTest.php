@@ -144,6 +144,7 @@ class AttestationValidationWorkflowTest extends TestCase
             $table->string('validation_status')->nullable();
             $table->timestamp('validation_requested_at')->nullable();
             $table->unsignedBigInteger('validation_requested_by')->nullable();
+            $table->json('validation_notified_to')->nullable();
             $table->timestamp('validated_at')->nullable();
             $table->unsignedBigInteger('validated_by')->nullable();
             $table->text('rejection_reason')->nullable();
@@ -215,6 +216,122 @@ class AttestationValidationWorkflowTest extends TestCase
                 return $pdfPath;
             }
         });
+    }
+
+    public function test_the_supervisors_to_notify_exclude_non_supervisors_and_users_without_email(): void
+    {
+        $this->createUser('agent@example.test');
+        User::create(['name' => 'Zoe', 'email' => 'zoe@example.test', 'is_admin' => true, 'is_supervisor' => true]);
+        User::create(['name' => 'Alice', 'email' => 'alice@example.test', 'is_admin' => true, 'is_supervisor' => true]);
+        User::create(['name' => 'Sans email', 'email' => '', 'is_admin' => true, 'is_supervisor' => true]);
+
+        $supervisors = app(AttestationValidationService::class)->supervisorsToNotify();
+
+        // Triés par nom, sans l'agent ni le superviseur dépourvu d'adresse
+        $this->assertSame(
+            ['alice@example.test', 'zoe@example.test'],
+            $supervisors->pluck('email')->all(),
+        );
+    }
+
+    public function test_the_send_for_validation_modal_names_the_supervisors_who_will_be_notified(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+
+        $request = $this->createRequest();
+
+        $html = view('filament.actions.send-for-validation-modal', [
+            'reference' => $request->reference,
+            'supervisors' => app(AttestationValidationService::class)->supervisorsToNotify(),
+        ])->render();
+
+        $this->assertStringContainsString($request->reference, $html);
+        $this->assertStringNotContainsString('Aucun superviseur', $html);
+
+        // Les destinataires sont désormais proposés en cases à cocher, pour
+        // n'alerter qu'une partie des superviseurs si l'agent le souhaite.
+        $this->assertContains(
+            $supervisor->id,
+            app(AttestationValidationService::class)->supervisorsToNotify()->pluck('id')->all(),
+        );
+    }
+
+    public function test_only_the_selected_supervisors_receive_the_validation_email(): void
+    {
+        Mail::fake();
+
+        $agent = $this->createUser('agent@example.test');
+        $notified = $this->createUser('prevenu@example.test', isSupervisor: true);
+        $ignored = $this->createUser('non-prevenu@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+
+        app(AttestationValidationService::class)->sendForValidation($request, $agent, [$notified->id]);
+
+        Mail::assertSent(
+            AttestationValidationRequested::class,
+            fn ($mail) => $mail->hasTo($notified->email),
+        );
+        Mail::assertNotSent(
+            AttestationValidationRequested::class,
+            fn ($mail) => $mail->hasTo($ignored->email),
+        );
+
+        // Le superviseur non prévenu garde le droit de valider : la sélection
+        // ne concerne que l'email.
+        $this->assertTrue($ignored->canValidateAttestations());
+        $this->assertSame([$notified->id], $request->fresh()->validation_notified_to);
+    }
+
+    public function test_the_notified_supervisors_are_listed_on_the_request(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        app(AttestationValidationService::class)->sendForValidation($request, $agent, [$supervisor->id]);
+
+        $notified = $request->fresh()->validationNotifiedUsers();
+
+        $this->assertCount(1, $notified);
+        $this->assertSame($supervisor->id, $notified->first()->id);
+    }
+
+    public function test_cancelling_a_validation_clears_the_notified_supervisors(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        app(AttestationValidationService::class)->sendForValidation($request, $agent, [$supervisor->id]);
+
+        $request->fresh()->resetValidation();
+
+        $this->assertNull($request->fresh()->validation_notified_to);
+        $this->assertTrue($request->fresh()->validationNotifiedUsers()->isEmpty());
+    }
+
+    public function test_the_send_for_validation_modal_warns_when_no_supervisor_is_designated(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $this->actingAsPanelUser($agent);
+
+        $request = $this->createRequest();
+
+        $html = view('filament.actions.send-for-validation-modal', [
+            'reference' => $request->reference,
+            'supervisors' => app(AttestationValidationService::class)->supervisorsToNotify(),
+        ])->render();
+
+        $this->assertStringContainsString('Aucun superviseur', $html);
     }
 
     private function createUser(string $email, bool $isSupervisor = false, bool $isAdmin = true): User
@@ -295,6 +412,24 @@ class AttestationValidationWorkflowTest extends TestCase
         imagepng($image, $temporaryPath);
 
         $relativePath = 'signatures/signature-test.png';
+        Storage::disk('public')->put($relativePath, file_get_contents($temporaryPath));
+        @unlink($temporaryPath);
+
+        return $relativePath;
+    }
+
+    /**
+     * Signature enregistrée dans un format que Word ne sait pas afficher.
+     */
+    private function createWebpSignatureImage(): string
+    {
+        $image = imagecreatetruecolor(300, 100);
+        imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
+
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'sig').'.webp';
+        imagewebp($image, $temporaryPath);
+
+        $relativePath = 'signatures/signature-test.webp';
         Storage::disk('public')->put($relativePath, file_get_contents($temporaryPath));
         @unlink($temporaryPath);
 
@@ -569,10 +704,38 @@ class AttestationValidationWorkflowTest extends TestCase
 
         $page = Livewire::test(ValidateRequest::class, ['record' => $request->id])->instance();
 
-        $this->assertSame(
+        $this->assertStringStartsWith(
             route('requests.attestation.preview', ['request' => $request->id]),
             $page->getPreviewUrl()
         );
+    }
+
+    public function test_the_preview_url_changes_once_the_attestation_is_signed(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        $service = app(AttestationValidationService::class);
+        $service->sendForValidation($request, $agent);
+
+        $this->actingAsPanelUser($supervisor);
+        $beforeApproval = Livewire::test(ValidateRequest::class, ['record' => $request->id])
+            ->instance()
+            ->getPreviewUrl();
+
+        // Le PDF signé écrase le précédent : sans marqueur de version dans
+        // l'URL, le navigateur resservirait au superviseur la version non signée.
+        $this->travel(1)->second();
+        $service->approve($request->fresh(), $supervisor);
+
+        $afterApproval = Livewire::test(ValidateRequest::class, ['record' => $request->id])
+            ->instance()
+            ->getPreviewUrl();
+
+        $this->assertNotSame($beforeApproval, $afterApproval);
     }
 
     public function test_the_pdf_preview_route_is_protected_and_serves_the_pdf_inline(): void
@@ -647,6 +810,57 @@ class AttestationValidationWorkflowTest extends TestCase
             ->assertHasActionErrors(['rejection_reason']);
 
         $this->assertSame(ValidationStatus::Pending, $request->fresh()->validation_status);
+    }
+
+    public function test_a_signature_in_a_format_word_cannot_display_is_reported_to_the_supervisor(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        $request->signatory->update(['signature_path' => $this->createWebpSignatureImage()]);
+
+        $service = app(AttestationValidationService::class);
+        $service->sendForValidation($request, $agent);
+
+        try {
+            $service->approve($request->fresh(), $supervisor);
+            $this->fail('Une signature au format WebP doit interrompre la validation.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('PNG ou JPEG', $e->getMessage());
+        }
+
+        $this->assertTrue(
+            $request->fresh()->isAwaitingValidation(),
+            'Une signature illisible doit laisser la demande en attente, pas la valider à moitié.'
+        );
+    }
+
+    public function test_the_water_and_wastewater_statuses_are_not_swapped_in_the_attestation(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $this->actingAsPanelUser($agent);
+        $template = $this->createDefaultTemplate();
+
+        $mapping = $template->getFullMapping();
+
+        // ${statut.adduction} précède « au réseau public d'Adduction d'Eau
+        // Potable » dans le modèle, ${statut.reseauPublic} précède « d'Eaux Usées ».
+        $this->assertSame('water_status_text', $mapping['statut.adduction']);
+        $this->assertSame('wastewater_status_text', $mapping['statut.reseauPublic']);
+    }
+
+    public function test_the_signature_variable_is_not_reported_as_unmapped(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $this->actingAsPanelUser($agent);
+        $template = $this->createDefaultTemplate();
+
+        $template->update(['variables' => ['reference', 'signature', 'signataire.signature']]);
+
+        $this->assertSame([], $template->getUnmappedVariables());
     }
 
     public function test_regenerating_a_validated_attestation_keeps_the_signature(): void

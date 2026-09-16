@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Filament\Actions\GenerateWordAction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\TemplateProcessor;
@@ -140,6 +141,7 @@ class DocumentTemplate extends Model
                 'signatory.title' => 'Fonction',
                 'signatory.phone' => 'Téléphone',
                 'signatory.email' => 'Email',
+                'signatory.signature' => 'Image de signature (apposée à la validation)',
             ],
             'Certificateur' => [
                 'certifier.name' => 'Nom',
@@ -198,10 +200,12 @@ class DocumentTemplate extends Model
             'demande.date' => 'request_date',
             'interlocuteur.nom' => 'contactPerson.name',
             'interlocuteur.tel' => 'contactPerson.phone',
-            'statut.adduction' => 'wastewater_status_text',
-            'statut.reseauPublic' => 'water_status_text',
+            'statut.adduction' => 'water_status_text',
+            'statut.reseauPublic' => 'wastewater_status_text',
             'signataire.nom' => 'signatory.name',
             'signataire.fonction' => 'signatory.title',
+            'signature' => 'signatory.signature',
+            'signataire.signature' => 'signatory.signature',
             'certifier.nom' => 'certifier.name',
             'certifier.fonction' => 'certifier.title',
             'observations' => 'observations',
@@ -225,6 +229,10 @@ class DocumentTemplate extends Model
         $unmapped = [];
 
         foreach ($this->variables ?? [] as $variable) {
+            if (in_array($variable, GenerateWordAction::SIGNATURE_VARIABLES, true)) {
+                continue;
+            }
+
             if (! isset($allMappings[$variable])) {
                 $unmapped[] = $variable;
             }

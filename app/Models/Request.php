@@ -16,6 +16,17 @@ class Request extends Model
     use HasFactory, SoftDeletes;
 
     /**
+     * Valeur de `request_status` pour une demande encore en cours de traitement.
+     */
+    public const STATUS_IN_PROGRESS = 1;
+
+    /**
+     * Nombre de jours au-delà duquel une attestation en attente de validation
+     * est considérée en retard.
+     */
+    public const VALIDATION_OVERDUE_DAYS = 7;
+
+    /**
      * The "booted" method of the model.
      */
     protected static function booted(): void
@@ -37,6 +48,7 @@ class Request extends Model
         'validation_status',
         'validation_requested_at',
         'validation_requested_by',
+        'validation_notified_to',
         'validated_at',
         'validated_by',
         'rejection_reason',
@@ -65,6 +77,7 @@ class Request extends Model
             'archived_at' => 'datetime',
             'validation_status' => ValidationStatus::class,
             'validation_requested_at' => 'datetime',
+            'validation_notified_to' => 'array',
             'validated_at' => 'datetime',
         ];
     }
@@ -107,6 +120,24 @@ class Request extends Model
     public function validatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'validated_by');
+    }
+
+    /**
+     * Superviseurs prévenus lors du dernier envoi en validation, dans l'ordre
+     * alphabétique. La validation reste ouverte à tous les superviseurs : cette
+     * liste dit qui a été sollicité, pas qui a le droit de valider.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, User>
+     */
+    public function validationNotifiedUsers(): \Illuminate\Database\Eloquent\Collection
+    {
+        $ids = $this->validation_notified_to ?? [];
+
+        if ($ids === []) {
+            return (new User)->newCollection();
+        }
+
+        return User::query()->whereIn('id', $ids)->orderBy('name')->get();
     }
 
     public function municipality(): BelongsTo
@@ -167,6 +198,42 @@ class Request extends Model
     }
 
     /**
+     * Les attestations oubliées en validation : passé ce délai, l'attente
+     * bloque la réponse au demandeur sans que rien ne le signale.
+     */
+    public function scopeValidationOverdue($query)
+    {
+        return $query->awaitingValidation()
+            ->where('validation_requested_at', '<', now()->subDays(self::VALIDATION_OVERDUE_DAYS));
+    }
+
+    /**
+     * Les attestations encore dans les délais de validation.
+     */
+    public function scopeValidationOnTime($query)
+    {
+        return $query->awaitingValidation()
+            ->where('validation_requested_at', '>=', now()->subDays(self::VALIDATION_OVERDUE_DAYS));
+    }
+
+    /**
+     * Les demandes en cours auxquelles aucune réponse n'a encore été envoyée.
+     */
+    public function scopeWithoutResponse($query)
+    {
+        return $query->whereNull('response_date')
+            ->where('request_status', self::STATUS_IN_PROGRESS);
+    }
+
+    /**
+     * Les demandes auxquelles une réponse a été envoyée.
+     */
+    public function scopeWithResponse($query)
+    {
+        return $query->whereNotNull('response_date');
+    }
+
+    /**
      * L'attestation attend la validation d'un superviseur.
      */
     public function isAwaitingValidation(): bool
@@ -217,6 +284,7 @@ class Request extends Model
             'validation_status' => null,
             'validation_requested_at' => null,
             'validation_requested_by' => null,
+            'validation_notified_to' => null,
             'validated_at' => null,
             'validated_by' => null,
             'rejection_reason' => null,

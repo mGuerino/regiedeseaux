@@ -224,20 +224,9 @@ class SendDocumentEmail extends Page implements HasActions, HasSchemas
                                 return Document::where('request_id', $requestId)
                                     ->orderBy('created_at', 'desc')
                                     ->get()
-                                    ->mapWithKeys(function ($doc) {
-                                        $icon = match ($doc->getFileExtension()) {
-                                            'pdf' => '📄',
-                                            'png', 'jpg', 'jpeg', 'bmp', 'gif' => '🖼️',
-                                            'docx', 'doc' => '📝',
-                                            default => '📎',
-                                        };
-                                        $size = $doc->getFileSizeFormatted();
-                                        $type = ucfirst($doc->document_type);
-
-                                        return [
-                                            $doc->id => "{$icon} {$doc->document_name} ({$size} • {$type})",
-                                        ];
-                                    })
+                                    ->mapWithKeys(fn (Document $doc) => [
+                                        $doc->id => $doc->getAttachmentPickerLabel(),
+                                    ])
                                     ->toArray();
                             })
                             ->helperText('Sélectionnez les documents à joindre (taille max totale : 10 Mo)'),

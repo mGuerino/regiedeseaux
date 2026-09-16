@@ -22,9 +22,24 @@ class GenerateWordAction
     public const SIGNATURE_VARIABLES = ['signature', 'signataire.signature'];
 
     /**
-     * Largeur d'insertion de l'image de signature, en points.
+     * Hauteur d'insertion de l'image de signature, en pixels.
+     *
+     * C'est la hauteur qui doit contraindre l'image : le bloc signataire du
+     * modèle Word est une zone de hauteur fixe, qu'une image trop haute ferait
+     * déborder sur le pied de page.
      */
-    private const SIGNATURE_WIDTH = 150;
+    private const SIGNATURE_HEIGHT = 38;
+
+    /**
+     * Largeur maximale de l'image de signature, en pixels.
+     *
+     * PhpWord fait tenir l'image dans la boîte largeur × hauteur qu'on lui
+     * donne, et retombe sur une largeur par défaut de 115 px si on ne la
+     * précise pas : une signature large serait alors ramenée bien en dessous
+     * de la hauteur voulue. Cette largeur, volontairement généreuse, laisse la
+     * hauteur décider tant que la signature ne dépasse pas ~10:1.
+     */
+    private const SIGNATURE_MAX_WIDTH = 400;
 
     public static function make(): Action
     {
@@ -224,11 +239,16 @@ class GenerateWordAction
             ? $record->signatory?->getSignatureFullPath()
             : null;
 
+        if ($signaturePath) {
+            self::assertSignatureIsSupported($signaturePath, $record->signatory?->name);
+        }
+
         foreach (self::SIGNATURE_VARIABLES as $variable) {
             if ($signaturePath) {
                 $templateProcessor->setImageValue($variable, [
                     'path' => $signaturePath,
-                    'width' => self::SIGNATURE_WIDTH,
+                    'width' => self::SIGNATURE_MAX_WIDTH,
+                    'height' => self::SIGNATURE_HEIGHT,
                     'ratio' => true,
                 ]);
 
@@ -237,6 +257,46 @@ class GenerateWordAction
 
             $templateProcessor->setValue($variable, '');
         }
+    }
+
+    /**
+     * Formats d'image que Word sait afficher. Une signature enregistrée dans un
+     * autre format ferait échouer la génération sur une erreur technique de
+     * PhpWord, sans indiquer quoi corriger.
+     *
+     * @var list<string>
+     */
+    private const SUPPORTED_SIGNATURE_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/bmp'];
+
+    /**
+     * @throws \RuntimeException si le format de l'image de signature n'est pas
+     *                           affichable dans un document Word
+     */
+    private static function assertSignatureIsSupported(string $signaturePath, ?string $signatoryName): void
+    {
+        $mime = @getimagesize($signaturePath)['mime'] ?? null;
+
+        if (in_array($mime, self::SUPPORTED_SIGNATURE_MIMES, true)) {
+            return;
+        }
+
+        $signatory = $signatoryName ? "de {$signatoryName} " : '';
+
+        // getimagesize() échoue aussi bien sur un format inconnu que sur un
+        // fichier disparu du disque : sans cette distinction, un fichier
+        // manquant enverrait l'agent changer un format parfaitement valide.
+        if (! is_file($signaturePath)) {
+            throw new \RuntimeException(
+                "L'image de signature {$signatory}est introuvable sur le serveur. "
+                .'Réimportez-la depuis la fiche de l\'agent.'
+            );
+        }
+
+        throw new \RuntimeException(
+            "L'image de signature {$signatory}est enregistrée dans un format que Word ne sait pas afficher"
+            .($mime ? " ({$mime})" : '')
+            .'. Remplacez-la par un fichier PNG ou JPEG depuis la fiche de l\'agent.'
+        );
     }
 
     /**

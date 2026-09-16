@@ -6,6 +6,7 @@ use App\Mail\DocumentEmail;
 use App\Models\Agent;
 use App\Models\Applicant;
 use App\Models\Contact;
+use App\Models\Document;
 use App\Models\EmailLog;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
@@ -102,18 +103,9 @@ class SendEmailFromRequestAction
                         ->label('Documents')
                         ->multiple()
                         ->required()
-                        ->options(fn () => $record->documents->mapWithKeys(function ($doc) {
-                            $icon = match ($doc->getFileExtension()) {
-                                'pdf' => '📄',
-                                'png', 'jpg', 'jpeg', 'bmp', 'gif' => '🖼️',
-                                'docx', 'doc' => '📝',
-                                default => '📎',
-                            };
-                            $size = $doc->getFileSizeFormatted();
-                            $type = ucfirst($doc->document_type);
-
-                            return [$doc->id => "{$icon} {$doc->document_name} ({$size} • {$type})"];
-                        }))
+                        ->options(fn () => $record->documents->mapWithKeys(
+                            fn (Document $doc) => [$doc->id => $doc->getAttachmentPickerLabel()],
+                        ))
                         ->helperText('Documents attachés à cette demande'),
                 ])
                 ->columns(1),

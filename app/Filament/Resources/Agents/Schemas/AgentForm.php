@@ -81,12 +81,13 @@ class AgentForm
                         FileUpload::make('signature_path')
                             ->label('Image de signature')
                             ->image()
+                            ->acceptedFileTypes(['image/png', 'image/jpeg'])
                             ->disk(Agent::SIGNATURE_DISK)
                             ->directory('signatures')
                             ->visibility('public')
                             ->maxSize(2048)
                             ->imagePreviewHeight('120')
-                            ->helperText('PNG à fond transparent recommandé (max 2 Mo).'),
+                            ->helperText('PNG à fond transparent recommandé (max 2 Mo). Word n\'affiche ni le format WebP ni le SVG.'),
                     ]),
 
                 Section::make('Paramètres')

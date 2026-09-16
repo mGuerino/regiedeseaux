@@ -55,6 +55,34 @@ class Document extends Model
     }
 
     /**
+     * Provenance du document, en clair : « upload » et « generated » sont des
+     * valeurs techniques que l'agent n'a aucune raison de lire telles quelles.
+     */
+    public function getTypeLabel(): string
+    {
+        return match ($this->document_type) {
+            'generated' => 'Généré par l\'application',
+            'upload' => 'Ajouté manuellement',
+            default => ucfirst((string) $this->document_type),
+        };
+    }
+
+    /**
+     * Libellé du document dans une liste de sélection de pièces jointes.
+     */
+    public function getAttachmentPickerLabel(): string
+    {
+        $icon = match ($this->getFileExtension()) {
+            'pdf' => '📄',
+            'png', 'jpg', 'jpeg', 'bmp', 'gif' => '🖼️',
+            'docx', 'doc' => '📝',
+            default => '📎',
+        };
+
+        return "{$icon} {$this->document_name} ({$this->getFileSizeFormatted()} • {$this->getTypeLabel()})";
+    }
+
+    /**
      * Obtenir l'icône Heroicon selon le type de fichier
      */
     public function getFileIconHeroicon(): string

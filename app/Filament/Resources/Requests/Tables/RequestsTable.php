@@ -7,6 +7,8 @@ use App\Filament\Actions\GenerateWordAction;
 use App\Filament\Actions\SendForValidationAction;
 use App\Filament\Resources\Requests\RequestResource;
 use App\Filament\Resources\Requests\Schemas\RequestViewSchema;
+use App\Models\Request as RequestModel;
+use App\Models\User;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -39,8 +41,32 @@ use Illuminate\Support\HtmlString;
 
 class RequestsTable
 {
+    /**
+     * Résolveur des noms d'affichage des utilisateurs, indexés par identifiant.
+     *
+     * Mémoïsé dans la portée de `configure()` — donc de la requête HTTP — et non
+     * dans une propriété statique : celle-ci survivrait au worker (Octane, suite
+     * de tests) et servirait indéfiniment une liste d'utilisateurs périmée, sans
+     * les comptes créés ou renommés depuis.
+     *
+     * @return \Closure(): \Illuminate\Support\Collection<int, string>
+     */
+    private static function userNamesResolver(): \Closure
+    {
+        $userNames = null;
+
+        return function () use (&$userNames): \Illuminate\Support\Collection {
+            return $userNames ??= User::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'first_name'])
+                ->mapWithKeys(fn (User $user) => [$user->id => $user->getFilamentName()]);
+        };
+    }
+
     public static function configure(Table $table): Table
     {
+        $userNames = self::userNamesResolver();
+
         return $table
             ->columns([
                 // 1. ID - Identifiant technique (visible, rétréci)
@@ -81,22 +107,55 @@ class RequestsTable
                 TextColumn::make('validation_status')
                     ->label('Validation')
                     ->badge()
-                    ->placeholder('Non soumise')
+                    ->placeholder('—')
                     ->sortable()
                     ->alignment(Alignment::Center)
+                    ->toggleable(),
+
+                // Qui a été sollicité et quand : de quoi relancer la bonne
+                // personne sans ouvrir la demande.
+                TextColumn::make('validation_requested_at')
+                    ->label('Envoyée en validation')
+                    ->dateTime('d/m/Y à H:i')
+                    ->placeholder('—')
+                    ->description(function ($record) use ($userNames): ?string {
+                        $ids = $record->validation_notified_to ?? [];
+
+                        if ($ids === []) {
+                            return null;
+                        }
+
+                        // Les noms sont résolus depuis une table chargée une seule
+                        // fois : interroger la base par ligne ajoutait une requête
+                        // par demande affichée.
+                        $notified = $userNames()->only($ids);
+
+                        return $notified->isEmpty() ? null : 'À '.$notified->implode(', ');
+                    })
+                    ->sortable()
                     ->toggleable(),
 
                 // 4. AEP - Compact, à côté du statut
                 IconColumn::make('water_status')
                     ->label('AEP')
+                    // « Non raccordable » est une information, pas une anomalie :
+                    // le rouge y faisait lire une erreur à chaque ligne.
+                    ->tooltip(fn ($state): string => $state
+                        ? 'Raccordable au réseau d\'adduction d\'eau potable'
+                        : 'Non raccordable au réseau d\'adduction d\'eau potable')
                     ->boolean()
+                    ->falseColor('gray')
                     ->width('1%')
                     ->toggleable(),
 
                 // 5. EU - Compact, à côté du statut
                 IconColumn::make('wastewater_status')
                     ->label('EU')
+                    ->tooltip(fn ($state): string => $state
+                        ? 'Raccordable au réseau d\'eaux usées'
+                        : 'Non raccordable au réseau d\'eaux usées')
                     ->boolean()
+                    ->falseColor('gray')
                     ->width('1%')
                     ->toggleable(),
 
@@ -381,6 +440,60 @@ class RequestsTable
                     ->preload()
                     ->native(false),
 
+                SelectFilter::make('signatory_id')
+                    ->label('Signataire')
+                    ->relationship('signatory', 'name')
+                    // La relation sert à peupler la liste ; le filtrage passe par
+                    // la clé étrangère indexée. Le whereHas par défaut produisait
+                    // un EXISTS qui parcourait la table des demandes.
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        filled($data['value'] ?? null),
+                        fn (Builder $query) => $query->where('signatory_id', $data['value']),
+                    ))
+                    ->searchable()
+                    ->preload()
+                    ->native(false),
+
+                // Retrouver ce qu'on a demandé à quelqu'un de valider, sans
+                // ouvrir les demandes une par une.
+                SelectFilter::make('validation_notified_to')
+                    ->label('Validation demandée à')
+                    ->options(fn () => User::query()
+                        ->supervisors()
+                        ->orderBy('name')
+                        ->get()
+                        ->mapWithKeys(fn (User $user) => [$user->id => $user->getFilamentName()])
+                        ->all())
+                    ->query(fn (Builder $query, array $data): Builder => filled($data['value'] ?? null)
+                        ? $query->whereJsonContains('validation_notified_to', (int) $data['value'])
+                        : $query)
+                    ->searchable()
+                    ->native(false),
+
+                // Une attestation oubliée en validation bloque la réponse au
+                // demandeur sans que rien ne le signale.
+                TernaryFilter::make('validation_overdue')
+                    ->label('En attente depuis plus de '.RequestModel::VALIDATION_OVERDUE_DAYS.' jours')
+                    ->placeholder('Toutes les demandes')
+                    ->trueLabel('En retard uniquement')
+                    ->falseLabel('Dans les délais uniquement')
+                    ->queries(
+                        true: fn (Builder $query) => $query->validationOverdue(),
+                        false: fn (Builder $query) => $query->validationOnTime(),
+                        blank: fn (Builder $query) => $query,
+                    ),
+
+                TernaryFilter::make('has_response')
+                    ->label('Réponse envoyée')
+                    ->placeholder('Toutes les demandes')
+                    ->trueLabel('Réponse envoyée')
+                    ->falseLabel('Sans réponse')
+                    ->queries(
+                        true: fn (Builder $query) => $query->withResponse(),
+                        false: fn (Builder $query) => $query->withoutResponse(),
+                        blank: fn (Builder $query) => $query,
+                    ),
+
                 // Filtre Supprimés (Trashed)
                 TrashedFilter::make(),
 
@@ -437,13 +550,30 @@ class RequestsTable
                         $filters['applicant_id'],
                         $filters['contact_id'],
                         $filters['followed_by_user_id'],
+                        $filters['signatory_id'],
                     ])
-                    ->columns(3)
+                    ->columns(2)
                     ->columnSpanFull()
                     ->collapsible(),
 
-                // Filtres système (pleine largeur)
+                // Section Suivi de la validation
+                Section::make('Validation')
+                    ->description('Suivre les attestations soumises à un superviseur')
+                    ->schema([
+                        $filters['validation_status'],
+                        $filters['validation_notified_to'],
+                        $filters['validation_overdue'],
+                        $filters['has_response'],
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull()
+                    ->collapsible(),
+
+                // Filtres système (pleine largeur). Tout filtre déclaré doit
+                // figurer ici : absent du panneau, son champ n'est pas rendu et
+                // la croix de son badge ne parvient plus à le retirer.
                 $filters['is_archived']->columnSpanFull(),
+                $filters['trashed']->columnSpanFull(),
             ])
             ->recordActions([
                 ViewAction::make()
@@ -520,6 +650,8 @@ class RequestsTable
             ->persistFiltersInSession() // Persiste les filtres entre les sessions
             ->reorderableColumns() // Permet de réorganiser les colonnes
             ->deferColumnManager(false) // Column manager réactif
+            // 16 515 demandes en pages de 10 faisaient 1 652 pages.
+            ->defaultPaginationPageOption(25)
             ->defaultSort('created_date', 'desc');
     }
 }

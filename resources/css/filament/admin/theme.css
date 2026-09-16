@@ -2,3 +2,101 @@
 
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
+
+/*
+ * Indicateurs de charge de travail (tableau de bord et liste des demandes).
+ *
+ * Ces cartes mènent à la liste déjà filtrée, mais rien ne le laissait deviner :
+ * ni curseur, ni réaction au survol, ni couleur distinguant une alerte d'un
+ * compteur au repos. Les classes ci-dessous sont écrites à la main plutôt que
+ * composées d'utilitaires Tailwind, pour survivre à la purge quel que soit
+ * l'endroit d'où le widget les applique.
+ */
+.regie-stat {
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition:
+        transform 150ms ease,
+        box-shadow 150ms ease,
+        border-color 150ms ease;
+}
+
+/* Liseré de couleur rappelant la nature de l'indicateur. */
+.regie-stat::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 4px;
+    background: var(--regie-stat-accent, var(--gray-300));
+    transition: width 150ms ease;
+}
+
+.regie-stat:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 10px 20px -8px rgb(0 0 0 / 0.18),
+        0 2px 6px -2px rgb(0 0 0 / 0.08);
+}
+
+.regie-stat:hover::before {
+    width: 6px;
+}
+
+.regie-stat:focus-visible {
+    outline: 2px solid var(--regie-stat-accent, var(--primary-600));
+    outline-offset: 2px;
+}
+
+/* La description devient un appel à l'action au survol. */
+.regie-stat .fi-wi-stats-overview-stat-description {
+    font-weight: 500;
+    transition: transform 150ms ease;
+}
+
+.regie-stat:hover .fi-wi-stats-overview-stat-description {
+    transform: translateX(2px);
+}
+
+/* Un indicateur à zéro n'appelle aucune action : il reste sobre. */
+.regie-stat-idle {
+    cursor: default;
+}
+
+.regie-stat-idle:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.regie-stat-idle:hover::before {
+    width: 4px;
+}
+
+.regie-stat-attention {
+    --regie-stat-accent: var(--warning-500);
+}
+
+.regie-stat-urgent {
+    --regie-stat-accent: var(--danger-500);
+}
+
+.regie-stat-neutral {
+    --regie-stat-accent: var(--primary-600);
+}
+
+.regie-stat-idle {
+    --regie-stat-accent: var(--gray-300);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .regie-stat,
+    .regie-stat::before,
+    .regie-stat .fi-wi-stats-overview-stat-description {
+        transition: none;
+    }
+
+    .regie-stat:hover {
+        transform: none;
+    }
+}
