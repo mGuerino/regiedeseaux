@@ -103,6 +103,7 @@ class DocumentTemplate extends Model
             'Demande' => [
                 'reference' => 'Référence de la demande',
                 'request_date' => 'Date de demande',
+                'edition_date' => 'Date du courrier (date de validation, ou du jour)',
                 'response_date' => 'Date de réponse',
                 'request_status_text' => "Statut (texte: 'En cours', 'Terminée', 'Annulée')",
                 'water_status_text' => 'Statut eau potable (texte)',
@@ -198,6 +199,7 @@ class DocumentTemplate extends Model
             'reference' => 'reference',
             'commune.nom' => 'municipality.name',
             'demande.date' => 'request_date',
+            'date.edition' => 'edition_date',
             'interlocuteur.nom' => 'contactPerson.name',
             'interlocuteur.tel' => 'contactPerson.phone',
             'statut.adduction' => 'water_status_text',

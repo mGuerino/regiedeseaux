@@ -890,6 +890,34 @@ class AttestationValidationWorkflowTest extends TestCase
         $this->assertNotNull($record->signatory->title);
     }
 
+    public function test_the_letter_date_freezes_once_the_attestation_is_validated(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        $service = app(AttestationValidationService::class);
+        $service->sendForValidation($request, $agent);
+        $service->approve($request->fresh(), $supervisor);
+
+        $validatedAt = $request->fresh()->validated_at;
+
+        // Une attestation régénérée des jours plus tard doit garder la date à
+        // laquelle elle a été signée, pas celle du jour.
+        $this->travel(10)->days();
+
+        $mapping = (new \ReflectionClass(GenerateWordAction::class))->getMethod('buildDataMapping');
+        $mapping->setAccessible(true);
+
+        $this->assertSame(
+            $validatedAt->format('d/m/Y'),
+            $mapping->invoke(null, $request->fresh())['edition_date'],
+        );
+        $this->assertNotSame(now()->format('d/m/Y'), $mapping->invoke(null, $request->fresh())['edition_date']);
+    }
+
     public function test_regenerating_a_validated_attestation_keeps_the_signature(): void
     {
         $agent = $this->createUser('agent@example.test');

@@ -28,7 +28,7 @@ class GenerateWordAction
      * modèle Word est une zone de hauteur fixe, qu'une image trop haute ferait
      * déborder sur le pied de page.
      */
-    private const SIGNATURE_HEIGHT = 38;
+    private const SIGNATURE_HEIGHT = 58;
 
     /**
      * Largeur maximale de l'image de signature, en pixels.
@@ -358,6 +358,12 @@ class GenerateWordAction
             // Demande
             'reference' => $record->reference ?? 'N/A',
             'request_date' => $record->request_date ? $record->request_date->format('d/m/Y') : 'N/A',
+            // Date portée par le courrier. Une fois l'attestation validée, elle
+            // se fige sur la date de validation : un document signé ne doit pas
+            // changer de date à chaque régénération.
+            'edition_date' => ($record->isValidated() && $record->validated_at
+                ? $record->validated_at
+                : now())->format('d/m/Y'),
             'response_date' => $record->response_date ? $record->response_date->format('d/m/Y') : 'N/A',
             'request_status_text' => match ($record->request_status) {
                 1 => 'En cours',
