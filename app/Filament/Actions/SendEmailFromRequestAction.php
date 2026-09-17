@@ -23,6 +23,12 @@ use Illuminate\Support\Facades\Storage;
 
 class SendEmailFromRequestAction
 {
+    /**
+     * Boîte du service urbanisme, en copie de chaque envoi par défaut : l'équipe
+     * garde ainsi trace des attestations parties.
+     */
+    public const DEFAULT_EXTRA_EMAIL = 'urbanisme@eauxdupaysdaix.fr';
+
     public static function make(): Action
     {
         return Action::make('send_email')
@@ -31,7 +37,7 @@ class SendEmailFromRequestAction
             ->color('success')
             ->mountUsing(fn ($form, $record) => $form->fill(static::defaultFormData($record)))
             ->form(fn ($record) => static::formSchema($record))
-            ->action(fn (array $data, $record) => static::send($data, $record))
+            ->action(fn (array $data, $record, Action $action) => static::send($data, $record, $action))
             ->modalHeading('Envoyer des documents par email')
             ->modalSubmitActionLabel('Envoyer')
             ->modalWidth('4xl');
@@ -63,7 +69,7 @@ class SendEmailFromRequestAction
         return [
             'document_ids' => $documentIds ?? $record->documents->pluck('id')->toArray(),
             'recipient_keys' => $recipientKeys,
-            'manual_emails' => [],
+            'manual_emails' => [self::DEFAULT_EXTRA_EMAIL],
             'subject' => "Attestation {$record->reference}",
             'message' => "Bonjour,\n\nVeuillez trouver ci-joint l'attestation pour la demande {$record->reference} concernant {$applicantName}.\n\nCordialement,\n".Auth::user()->name,
             'mark_as_completed' => false,
@@ -87,12 +93,22 @@ class SendEmailFromRequestAction
                         ->multiple()
                         ->searchable()
                         ->options(fn () => static::getRecipientOptions($record))
+                        // Au moins un destinataire, dans l'un ou l'autre champ :
+                        // l'erreur s'affiche sur le formulaire, qui reste ouvert.
+                        ->requiredWithout('manual_emails')
+                        ->validationMessages([
+                            'required_without' => 'Choisissez un destinataire ou saisissez un email supplémentaire.',
+                        ])
                         ->helperText('Contact et demandeur de cette demande, ou autres personnes'),
 
                     TagsInput::make('manual_emails')
                         ->label('Emails supplémentaires')
                         ->placeholder('email@example.com')
                         ->helperText('Appuyez sur Entrée après chaque email')
+                        ->requiredWithout('recipient_keys')
+                        ->validationMessages([
+                            'required_without' => 'Saisissez un email ou choisissez un destinataire.',
+                        ])
                         ->nestedRecursiveRules(['email']),
                 ])
                 ->columns(1),
@@ -142,10 +158,15 @@ class SendEmailFromRequestAction
     /**
      * Envoyer les documents sélectionnés aux destinataires choisis.
      *
+     * Tant qu'aucun email n'est parti, un refus garde la modale ouverte pour que
+     * l'utilisateur corrige sans ressaisir. Une fois l'envoi entamé, elle se
+     * ferme même en cas d'erreur partielle : la rouvrir inviterait à renvoyer
+     * aux destinataires déjà servis.
+     *
      * @param  array<string, mixed>  $data
      * @return bool Vrai si au moins un email a été envoyé sans erreur
      */
-    public static function send(array $data, $record): bool
+    public static function send(array $data, $record, ?Action $action = null): bool
     {
         // Récupération des documents
         $documents = $record->documents()->whereIn('id', $data['document_ids'])->get();
@@ -156,6 +177,8 @@ class SendEmailFromRequestAction
                 ->body('Aucun document sélectionné.')
                 ->danger()
                 ->send();
+
+            $action?->halt();
 
             return false;
         }
@@ -175,6 +198,8 @@ class SendEmailFromRequestAction
                 ->danger()
                 ->send();
 
+            $action?->halt();
+
             return false;
         }
 
@@ -187,6 +212,8 @@ class SendEmailFromRequestAction
                 ->body('Veuillez sélectionner au moins un destinataire.')
                 ->danger()
                 ->send();
+
+            $action?->halt();
 
             return false;
         }
@@ -205,6 +232,8 @@ class SendEmailFromRequestAction
                 ->body("La taille totale des documents ({$totalSizeMB} Mo) dépasse la limite autorisée de 10 Mo.")
                 ->danger()
                 ->send();
+
+            $action?->halt();
 
             return false;
         }

@@ -65,8 +65,10 @@ class SendForValidationAction
                     return;
                 }
 
+                $supervisorIds = array_map('intval', $data['supervisor_ids'] ?? []);
+
                 try {
-                    $service->sendForValidation($record, Auth::user(), $data['supervisor_ids'] ?? null);
+                    $service->sendForValidation($record, Auth::user(), $supervisorIds);
                 } catch (PdfConversionException $e) {
                     Notification::make()
                         ->title('Aperçu PDF indisponible')
@@ -86,7 +88,7 @@ class SendForValidationAction
                     return;
                 }
 
-                self::sendOutcomeNotification($record, $service->notifiedSupervisorsCount());
+                self::sendOutcomeNotification($record, count($supervisorIds), $service->notifiedSupervisorsCount());
             });
     }
 
@@ -108,11 +110,11 @@ class SendForValidationAction
                     ])
                     ->all())
                 ->default(fn () => $supervisorsToNotify()->pluck('id')->all())
-                ->required()
-                ->minItems(1)
+                // Facultatif : tout décocher envoie en validation sans email,
+                // quand le superviseur est déjà prévenu de vive voix.
                 ->bulkToggleable()
                 ->visible(fn () => $supervisorsToNotify()->isNotEmpty())
-                ->helperText('Tous les superviseurs pourront valider l\'attestation, quels que soient les destinataires de l\'email.'),
+                ->helperText('Décochez tout pour envoyer en validation sans email. Tous les superviseurs pourront valider l\'attestation, quels que soient les destinataires.'),
         ];
     }
 
@@ -120,7 +122,7 @@ class SendForValidationAction
      * Rendre compte de l'envoi en un seul message, plutôt qu'en empilant une
      * notification par point de vigilance.
      */
-    private static function sendOutcomeNotification(Request $record, int $notifiedSupervisors): void
+    private static function sendOutcomeNotification(Request $record, int $selectedSupervisors, int $notifiedSupervisors): void
     {
         $warnings = [];
 
@@ -128,7 +130,7 @@ class SendForValidationAction
         // n'est parti. L'attestation est bien en attente : elle reste visible
         // dans l'indicateur « En attente de validation », il ne faut donc pas
         // la renvoyer.
-        if ($notifiedSupervisors === 0) {
+        if ($selectedSupervisors > 0 && $notifiedSupervisors === 0) {
             $warnings[] = 'Aucun email n\'a pu être envoyé aux superviseurs : vérifiez la configuration d\'envoi. L\'attestation reste comptée dans l\'indicateur « En attente de validation » de la liste des demandes.';
         }
 
@@ -138,10 +140,17 @@ class SendForValidationAction
             $warnings[] = "Aucune image de signature n'est enregistrée pour {$record->signatory->name} : l'attestation sera validée sans signature.";
         }
 
+        $recap = match (true) {
+            $notifiedSupervisors > 1 => "{$notifiedSupervisors} superviseurs ont été prévenus par email.",
+            $notifiedSupervisors === 1 => 'Le superviseur a été prévenu par email.',
+            $selectedSupervisors === 0 => 'Aucun email envoyé : l\'attestation attend dans l\'indicateur « En attente de validation ».',
+            default => '',
+        };
+
         if ($warnings === []) {
             Notification::make()
                 ->title('Attestation envoyée en validation')
-                ->body('Les superviseurs ont été prévenus par email.')
+                ->body($recap)
                 ->success()
                 ->send();
 
@@ -150,7 +159,7 @@ class SendForValidationAction
 
         Notification::make()
             ->title('Attestation envoyée en validation')
-            ->body(($notifiedSupervisors > 0 ? 'Les superviseurs ont été prévenus par email. ' : '').implode(' ', $warnings))
+            ->body(trim($recap.' '.implode(' ', $warnings)))
             ->warning()
             ->duration(20000)
             ->send();

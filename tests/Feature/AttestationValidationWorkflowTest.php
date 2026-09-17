@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ValidationStatus;
 use App\Exceptions\PdfConversionException;
 use App\Filament\Actions\GenerateWordAction;
+use App\Filament\Actions\SendEmailFromRequestAction;
 use App\Filament\Pages\ManageTemplates;
 use App\Filament\Resources\Agents\AgentResource;
 use App\Filament\Resources\Applicants\ApplicantResource;
@@ -18,11 +19,13 @@ use App\Filament\Resources\Roads\RoadResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Mail\AttestationValidationRejected;
 use App\Mail\AttestationValidationRequested;
+use App\Mail\DocumentEmail;
 use App\Models\Agent;
 use App\Models\Applicant;
 use App\Models\Contact;
 use App\Models\Document;
 use App\Models\DocumentTemplate;
+use App\Models\EmailLog;
 use App\Models\Municipality;
 use App\Models\Parcel;
 use App\Models\Request;
@@ -170,6 +173,20 @@ class AttestationValidationWorkflowTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('email_logs', function (Blueprint $table) {
+            $table->id();
+            $table->string('subject');
+            $table->text('message');
+            $table->json('recipients');
+            $table->json('recipient_keys')->nullable();
+            $table->json('document_ids');
+            $table->string('sent_by');
+            $table->unsignedInteger('recipients_count');
+            $table->boolean('success')->default(true);
+            $table->text('error_message')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('documents', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('request_id');
@@ -256,6 +273,29 @@ class AttestationValidationWorkflowTest extends TestCase
             $supervisor->id,
             app(AttestationValidationService::class)->supervisorsToNotify()->pluck('id')->all(),
         );
+    }
+
+    public function test_unchecking_every_supervisor_sends_for_validation_without_email(): void
+    {
+        Mail::fake();
+
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+
+        Livewire::test(EditRequest::class, ['record' => $request->id])
+            ->callAction('send_for_validation', data: ['supervisor_ids' => []])
+            ->assertHasNoActionErrors();
+
+        Mail::assertNotSent(AttestationValidationRequested::class);
+
+        // En attente malgré tout, et validable par n'importe quel superviseur.
+        $this->assertTrue($request->fresh()->isAwaitingValidation());
+        $this->assertSame([], $request->fresh()->validation_notified_to);
+        $this->assertTrue($supervisor->canValidateAttestations());
     }
 
     public function test_only_the_selected_supervisors_receive_the_validation_email(): void
@@ -791,6 +831,125 @@ class AttestationValidationWorkflowTest extends TestCase
         $signedPdf = $request->fresh()->latestGeneratedDocument('pdf');
 
         $component->assertActionDataSet(['document_ids' => [$signedPdf->id]]);
+    }
+
+    public function test_an_attestation_can_be_validated_without_opening_the_email_form(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        app(AttestationValidationService::class)->sendForValidation($request, $agent);
+
+        $this->actingAsPanelUser($supervisor);
+
+        Livewire::test(ValidateRequest::class, ['record' => $request->id])
+            ->callAction('approve', data: ['open_email_form' => false])
+            ->assertHasNoActionErrors()
+            ->assertActionNotMounted('send_email');
+
+        // Validée et signée, l'attestation reste envoyable plus tard.
+        $this->assertTrue($request->fresh()->isValidated());
+    }
+
+    public function test_sending_later_preselects_only_the_signed_pdf(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        $service = app(AttestationValidationService::class);
+        $service->sendForValidation($request, $agent);
+        $service->approve($request->fresh(), $supervisor);
+
+        // Nouvelle visite de la page : l'identifiant du PDF signé mémorisé à la
+        // validation n'existe plus.
+        $this->actingAsPanelUser($supervisor);
+        $signedPdf = $request->fresh()->latestGeneratedDocument('pdf');
+
+        Livewire::test(ValidateRequest::class, ['record' => $request->id])
+            ->mountAction('send_email')
+            ->assertActionDataSet(['document_ids' => [$signedPdf->id]]);
+    }
+
+    public function test_the_validation_history_shows_when_the_attestation_was_emailed(): void
+    {
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        $service = app(AttestationValidationService::class);
+        $service->sendForValidation($request, $agent);
+
+        // Un envoi de la version non signée, avant validation, ne compte pas.
+        $pdfId = $request->fresh()->latestGeneratedDocument('pdf')->id;
+        EmailLog::create([
+            'subject' => 'Avant validation', 'message' => '-', 'recipients' => ['avant@example.test'],
+            'document_ids' => [$pdfId], 'sent_by' => 'Agent', 'recipients_count' => 1, 'success' => true,
+        ]);
+
+        $this->travel(1)->minute();
+        $service->approve($request->fresh(), $supervisor);
+        $this->assertNull($request->fresh()->lastAttestationEmail());
+
+        $this->travel(1)->minute();
+        EmailLog::create([
+            'subject' => 'Attestation', 'message' => '-', 'recipients' => ['notaire@example.test'],
+            'document_ids' => [(string) $pdfId], 'sent_by' => 'Superviseur', 'recipients_count' => 1, 'success' => true,
+        ]);
+
+        $email = $request->fresh()->lastAttestationEmail();
+
+        $this->assertNotNull($email);
+        $this->assertSame(['notaire@example.test'], $email->recipients);
+
+        $this->actingAsPanelUser($supervisor);
+        Livewire::test(ValidateRequest::class, ['record' => $request->id])
+            ->assertSee('Envoyée par email')
+            ->assertSee('notaire@example.test');
+    }
+
+    public function test_the_email_form_copies_the_urbanism_mailbox_by_default(): void
+    {
+        $this->actingAsPanelUser($this->createUser('agent@example.test'));
+        $request = $this->createRequest();
+
+        $this->assertContains(
+            SendEmailFromRequestAction::DEFAULT_EXTRA_EMAIL,
+            SendEmailFromRequestAction::defaultFormData($request)['manual_emails'],
+        );
+    }
+
+    public function test_the_email_form_stays_open_without_any_recipient(): void
+    {
+        Mail::fake();
+
+        $agent = $this->createUser('agent@example.test');
+        $supervisor = $this->createUser('superviseur@example.test', isSupervisor: true);
+        $this->actingAsPanelUser($agent);
+        $this->createDefaultTemplate();
+
+        $request = $this->createRequest();
+        $service = app(AttestationValidationService::class);
+        $service->sendForValidation($request, $agent);
+        $service->approve($request->fresh(), $supervisor);
+
+        $this->actingAsPanelUser($supervisor);
+
+        Livewire::test(ValidateRequest::class, ['record' => $request->id])
+            ->mountAction('send_email')
+            ->setActionData(['recipient_keys' => [], 'manual_emails' => []])
+            ->callMountedAction()
+            ->assertHasActionErrors(['recipient_keys' => 'required_without'])
+            ->assertActionMounted('send_email');
+
+        Mail::assertNotSent(DocumentEmail::class);
     }
 
     public function test_rejecting_from_the_page_requires_a_reason(): void

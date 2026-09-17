@@ -143,6 +143,21 @@
                                     @endif
                                 </dd>
                             </div>
+
+                            @php($attestationEmail = $this->record->lastAttestationEmail())
+                            <div>
+                                <dt class="text-gray-500 dark:text-gray-400">Envoyée par email</dt>
+                                <dd class="font-medium text-gray-950 dark:text-white">
+                                    @if ($attestationEmail)
+                                        {{ $attestationEmail->created_at->format('d/m/Y à H:i') }} par {{ $attestationEmail->sent_by }}
+                                        <span class="block font-normal text-gray-500 dark:text-gray-400">
+                                            À {{ implode(', ', $attestationEmail->recipients ?? []) }}
+                                        </span>
+                                    @else
+                                        <span class="font-normal text-gray-500 dark:text-gray-400">Pas encore envoyée</span>
+                                    @endif
+                                </dd>
+                            </div>
                         @endif
                     </dl>
                 </x-filament::section>

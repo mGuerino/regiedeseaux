@@ -140,6 +140,41 @@ class Request extends Model
         return User::query()->whereIn('id', $ids)->orderBy('name')->get();
     }
 
+    /**
+     * Dernier envoi réussi de l'attestation validée.
+     *
+     * Le journal d'envoi ne connaît pas la demande, seulement les documents
+     * joints : on le retrouve par ces documents. Seuls les envois postérieurs à
+     * la validation comptent — un envoi antérieur portait une version non
+     * signée de l'attestation.
+     */
+    public function lastAttestationEmail(): ?EmailLog
+    {
+        if (! $this->validated_at) {
+            return null;
+        }
+
+        $documentIds = $this->documents()->pluck('id');
+
+        if ($documentIds->isEmpty()) {
+            return null;
+        }
+
+        return EmailLog::query()
+            ->where('success', true)
+            ->where('created_at', '>=', $this->validated_at)
+            ->where(function ($query) use ($documentIds): void {
+                // Selon l'écran d'origine, les identifiants sont enregistrés
+                // en entiers ou en chaînes.
+                foreach ($documentIds as $id) {
+                    $query->orWhereJsonContains('document_ids', $id)
+                        ->orWhereJsonContains('document_ids', (string) $id);
+                }
+            })
+            ->latest('created_at')
+            ->first();
+    }
+
     public function municipality(): BelongsTo
     {
         return $this->belongsTo(Municipality::class, 'municipality_code', 'code');

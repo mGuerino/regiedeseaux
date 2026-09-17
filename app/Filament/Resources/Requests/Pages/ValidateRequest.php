@@ -8,6 +8,7 @@ use App\Filament\Resources\Requests\RequestResource;
 use App\Models\Document;
 use App\Services\AttestationValidationService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
@@ -97,7 +98,7 @@ class ValidateRequest extends Page
     protected function approveAction(): Action
     {
         return Action::make('approve')
-            ->label('Valider et envoyer')
+            ->label('Valider')
             ->icon(Heroicon::OutlinedCheckBadge)
             ->color('success')
             ->visible(fn () => $this->record->isAwaitingValidation())
@@ -109,17 +110,26 @@ class ValidateRequest extends Page
                 $signatory = $this->record->signatory;
 
                 if ($signatory?->hasSignature()) {
-                    return "La signature de {$signatory->name} va être apposée sur l'attestation, puis le formulaire d'envoi par email s'ouvrira.";
+                    return "La signature de {$signatory->name} va être apposée sur l'attestation.";
                 }
 
                 if (! $signatory) {
-                    return 'Aucun signataire n\'est renseigné sur cette demande : l\'attestation sera validée sans signature. Le formulaire d\'envoi par email s\'ouvrira ensuite.';
+                    return 'Aucun signataire n\'est renseigné sur cette demande : l\'attestation sera validée sans signature.';
                 }
 
-                return "Aucune image de signature n'est enregistrée pour {$signatory->name} : l'attestation sera validée sans signature. Le formulaire d'envoi par email s'ouvrira ensuite.";
+                return "Aucune image de signature n'est enregistrée pour {$signatory->name} : l'attestation sera validée sans signature.";
             })
+            // L'envoi au demandeur n'est pas toujours immédiat : l'attestation
+            // peut partir plus tard, ou par un autre canal. Elle reste alors
+            // envoyable depuis le bouton « Envoyer l'attestation ».
+            ->schema([
+                Checkbox::make('open_email_form')
+                    ->label('Envoyer l\'attestation par email après validation')
+                    ->helperText('Décochez pour valider sans envoyer. L\'envoi restera possible ensuite depuis cette page.')
+                    ->default(true),
+            ])
             ->modalSubmitActionLabel('Valider')
-            ->action(function () {
+            ->action(function (array $data) {
                 try {
                     $pdfDocument = app(AttestationValidationService::class)->approve($this->record, Auth::user());
                 } catch (PdfConversionException|\RuntimeException $e) {
@@ -144,7 +154,9 @@ class ValidateRequest extends Page
                     ->success()
                     ->send();
 
-                $this->replaceMountedAction('send_email');
+                if ($data['open_email_form'] ?? true) {
+                    $this->replaceMountedAction('send_email');
+                }
             });
     }
 
@@ -190,7 +202,28 @@ class ValidateRequest extends Page
             ->label('Envoyer l\'attestation')
             ->mountUsing(fn ($form) => $form->fill(SendEmailFromRequestAction::defaultFormData(
                 $this->record,
-                $this->signedPdfDocumentId ? [$this->signedPdfDocumentId] : null,
+                $this->signedDocumentIds(),
             )));
+    }
+
+    /**
+     * Documents à présélectionner dans l'envoi : le PDF signé seul.
+     *
+     * Juste après la validation, il est connu par son identifiant. Si le
+     * superviseur a validé sans envoyer et revient plus tard, cette information
+     * est perdue au rechargement : on retombe sur le dernier PDF généré, qui est
+     * le PDF signé, plutôt que sur tous les documents — Word modifiable compris.
+     *
+     * @return list<int>|null
+     */
+    private function signedDocumentIds(): ?array
+    {
+        if ($this->signedPdfDocumentId) {
+            return [$this->signedPdfDocumentId];
+        }
+
+        $signedPdf = $this->record->latestGeneratedDocument('pdf');
+
+        return $signedPdf ? [$signedPdf->id] : null;
     }
 }

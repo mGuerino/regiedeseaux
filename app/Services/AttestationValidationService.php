@@ -21,9 +21,9 @@ class AttestationValidationService
      * Envoyer une attestation en validation : l'attestation est régénérée, son
      * PDF de consultation est produit, puis les superviseurs sont notifiés.
      *
-     * @param  list<int>|null  $supervisorIds  Superviseurs à prévenir. Par défaut
-     *                                         tous les superviseurs joignables.
-     *                                         La validation reste ouverte à tous.
+     * @param  list<int>|null  $supervisorIds  Superviseurs à prévenir : null pour
+     *                                         tous, tableau vide pour personne. La
+     *                                         validation reste ouverte à tous.
      *
      * @throws \App\Exceptions\PdfConversionException
      * @throws \RuntimeException si l'attestation Word n'a pas pu être générée
@@ -50,7 +50,11 @@ class AttestationValidationService
             'rejection_reason' => null,
         ]);
 
-        $this->notifySupervisors($request, $requestedBy, $recipients);
+        if ($recipients->isNotEmpty()) {
+            $this->notifySupervisors($request, $requestedBy, $recipients);
+        } else {
+            $this->notifiedSupervisorsCount = 0;
+        }
 
         return $pdfDocument;
     }
@@ -66,7 +70,10 @@ class AttestationValidationService
     {
         $query = $this->notifiableSupervisors();
 
-        if ($supervisorIds !== null && $supervisorIds !== []) {
+        // null : aucun choix exprimé, tous les superviseurs sont prévenus.
+        // Tableau vide : l'agent a tout décoché, personne ne reçoit d'email —
+        // la validation reste ouverte à tous les superviseurs.
+        if ($supervisorIds !== null) {
             $query->whereIn('id', $supervisorIds);
         }
 
