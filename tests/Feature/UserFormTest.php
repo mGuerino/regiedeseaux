@@ -152,6 +152,17 @@ class UserFormTest extends TestCase
         $this->assertFalse($supervisor->fresh()->is_supervisor);
     }
 
+    public function test_validation_messages_are_translated_into_french(): void
+    {
+        // Sans fichier de traduction, les erreurs s'affichaient sous la forme de
+        // leur clé brute, « validation.required ».
+        app()->setLocale('fr');
+        $this->assertSame(
+            'Le champ Nom est obligatoire.',
+            __('validation.required', ['attribute' => 'Nom']),
+        );
+    }
+
     private function createPlainUser(string $email): User
     {
         return User::create([
